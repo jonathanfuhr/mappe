@@ -19,6 +19,12 @@ export class KiFehler extends Error {
   constructor(
     message: string,
     public ursache?: unknown,
+    /**
+     * Der Endpunkt kam mit der angeforderten Antwortstruktur nicht zurecht.
+     * Nur dann lohnt der Versuch mit einer schwächeren Stufe – bei einem
+     * Schlüssel- oder Verbindungsproblem hilft das nichts.
+     */
+    public formatProblem = false,
   ) {
     super(message)
     this.name = 'KiFehler'
@@ -68,8 +74,11 @@ export async function frageKi<T>(anfrage: KiAnfrage): Promise<KiAntwort<T>> {
     } catch (err) {
       letzterFehler = err
       // Ein Verbindungs- oder Schlüsselproblem löst sich nicht dadurch, dass
-      // wir es mit einer schwächeren JSON-Stufe erneut versuchen.
-      if (err instanceof KiFehler && !err.message.includes('response_format')) throw err
+      // wir es mit einer schwächeren JSON-Stufe erneut versuchen. Nur ein
+      // ausgewiesenes Formatproblem rechtfertigt den nächsten Versuch.
+      if (err instanceof KiFehler && !err.formatProblem) throw err
+      // Die letzte Stufe hat keine schwächere mehr hinter sich.
+      if (modus === 'keiner') throw err
     }
   }
 
@@ -133,10 +142,21 @@ async function sendeAnfrage(
 
   if (!antwort.ok) {
     const text = await antwort.text().catch(() => '')
-    // Kennt der Endpunkt das Format nicht, meldet er meist 400 mit einem
-    // Hinweis darauf – dann greift die nächstschwächere Stufe.
-    if (antwort.status === 400 && /response_format|json_schema|schema/i.test(text)) {
-      throw new KiFehler(`response_format wird nicht unterstützt: ${text.slice(0, 200)}`)
+    /*
+     * Ein 400 auf eine Chat-Anfrage betrifft fast immer die Form der Anfrage.
+     * Solange wir eine Antwortstruktur erzwingen wollten, gilt er deshalb als
+     * Formatproblem – auch wenn die Meldung das nicht ausdrücklich sagt.
+     * Ältere Ollama-Fassungen etwa antworten nur mit einem knappen
+     * „invalid request", ohne das Format zu benennen; ohne diese Annahme
+     * bliebe der Rückfall auf die schwächere Stufe ungenutzt.
+     */
+    const formatProblem = antwort.status === 400 && modus !== 'keiner'
+    if (formatProblem) {
+      throw new KiFehler(
+        `Die Antwortstruktur „${modus}" wird nicht unterstützt: ${text.slice(0, 200)}`,
+        text,
+        true,
+      )
     }
     throw new KiFehler(uebersetzeFehler(antwort.status, text))
   }
@@ -175,7 +195,13 @@ export function parseJson<T>(roh: string): T {
         // fällt durch
       }
     }
-    throw new KiFehler(`Die Antwort war kein gültiges JSON: ${ohneRahmen.slice(0, 200)}`)
+    throw new KiFehler(
+      `Die Antwort war kein gültiges JSON: ${ohneRahmen.slice(0, 200)}`,
+      roh,
+      // Auch das ist ein Formatproblem: Vielleicht kommt der Endpunkt mit
+      // einer anderen Stufe zu einer brauchbaren Antwort.
+      true,
+    )
   }
 }
 

@@ -2,7 +2,7 @@ import type { Prisma } from '@prisma/client'
 import { Router } from 'express'
 import { z } from 'zod'
 import { applicationScope, assertCanEditApplication, assertCanViewApplication } from '../auth/access'
-import { currentUser, requireAuth, requireRecruiter } from '../auth/middleware'
+import { currentUser, requireAuth, requireRecruiter, type AuthUser } from '../auth/middleware'
 import { prisma } from '../db'
 import { audit } from '../lib/audit'
 import { badRequest, notFound, wrap } from '../lib/errors'
@@ -35,6 +35,45 @@ const filterSchema = paginationSchema.extend({
   sortierung: z.enum(['neueste', 'aelteste', 'bewertung', 'name']).default('neueste'),
 })
 
+/**
+ * Baut die Filterbedingung für Liste und Board.
+ *
+ * Die Sichtbarkeitsprüfung steht als **eigener Eintrag in einem AND-Feld**,
+ * nicht als Spread neben den Filtern. Der Grund ist eine Falle, die genau
+ * einmal zugeschlagen hat: `applicationScope` liefert für Interviewer ein
+ * `OR`, und die Volltextsuche liefert ebenfalls ein `OR`. Nebeneinander
+ * gespreadet überschreibt das zweite das erste – ein Interviewer hätte beim
+ * Tippen in die Suche jede Bewerbung im Haus gesehen.
+ *
+ * In dieser Form kann kein künftiger Filter die Prüfung mehr aushebeln.
+ */
+export function baueBewerbungsFilter(
+  user: AuthUser,
+  f: Partial<z.infer<typeof filterSchema>>,
+): Prisma.ApplicationWhereInput {
+  const bedingungen: Prisma.ApplicationWhereInput[] = [applicationScope(user)]
+
+  if (f.phase) bedingungen.push({ stage: f.phase })
+  if (f.stelle) bedingungen.push({ jobId: f.stelle })
+  if (f.quelle) bedingungen.push({ source: f.quelle })
+  if (f.nurZuPruefen) bedingungen.push({ needsReview: true })
+  if (f.initiativ !== undefined) bedingungen.push({ speculative: f.initiativ })
+
+  if (f.suche) {
+    bedingungen.push({
+      OR: [
+        { subject: { contains: f.suche, mode: 'insensitive' } },
+        { candidate: { firstName: { contains: f.suche, mode: 'insensitive' } } },
+        { candidate: { lastName: { contains: f.suche, mode: 'insensitive' } } },
+        { candidate: { email: { contains: f.suche, mode: 'insensitive' } } },
+        { job: { title: { contains: f.suche, mode: 'insensitive' } } },
+      ],
+    })
+  }
+
+  return { AND: bedingungen }
+}
+
 const listenAuswahl = {
   id: true,
   stage: true,
@@ -62,25 +101,7 @@ bewerbungenRouter.get(
     const me = currentUser(req)
     const f = getQuery<z.infer<typeof filterSchema>>(req)
 
-    const where: Prisma.ApplicationWhereInput = {
-      ...applicationScope(me),
-      ...(f.phase ? { stage: f.phase } : {}),
-      ...(f.stelle ? { jobId: f.stelle } : {}),
-      ...(f.quelle ? { source: f.quelle } : {}),
-      ...(f.nurZuPruefen ? { needsReview: true } : {}),
-      ...(f.initiativ !== undefined ? { speculative: f.initiativ } : {}),
-      ...(f.suche
-        ? {
-            OR: [
-              { subject: { contains: f.suche, mode: 'insensitive' } },
-              { candidate: { firstName: { contains: f.suche, mode: 'insensitive' } } },
-              { candidate: { lastName: { contains: f.suche, mode: 'insensitive' } } },
-              { candidate: { email: { contains: f.suche, mode: 'insensitive' } } },
-              { job: { title: { contains: f.suche, mode: 'insensitive' } } },
-            ],
-          }
-        : {}),
-    }
+    const where = baueBewerbungsFilter(me, f)
 
     const orderBy: Prisma.ApplicationOrderByWithRelationInput[] =
       f.sortierung === 'aelteste'
@@ -115,24 +136,10 @@ bewerbungenRouter.get(
     const me = currentUser(req)
     const f = getQuery<Partial<z.infer<typeof filterSchema>>>(req)
 
-    const where: Prisma.ApplicationWhereInput = {
-      ...applicationScope(me),
-      ...(f.stelle ? { jobId: f.stelle } : {}),
-      ...(f.quelle ? { source: f.quelle } : {}),
-      ...(f.initiativ !== undefined ? { speculative: f.initiativ } : {}),
-      ...(f.suche
-        ? {
-            OR: [
-              { candidate: { firstName: { contains: f.suche, mode: 'insensitive' } } },
-              { candidate: { lastName: { contains: f.suche, mode: 'insensitive' } } },
-              { subject: { contains: f.suche, mode: 'insensitive' } },
-            ],
-          }
-        : {}),
-    }
-
+    // Dieselbe Filterfunktion wie die Liste – damit lässt sich die
+    // Sichtbarkeitsprüfung nicht an einer Stelle vergessen.
     const eintraege = await prisma.application.findMany({
-      where,
+      where: baueBewerbungsFilter(me, f),
       select: listenAuswahl,
       orderBy: [{ boardOrder: 'asc' }, { appliedAt: 'desc' }],
       // Ein Board mit tausend Karten hilft niemandem; das Archiv liegt in der

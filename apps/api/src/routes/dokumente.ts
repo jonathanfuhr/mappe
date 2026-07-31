@@ -218,22 +218,22 @@ dokumenteRouter.post(
   }),
 )
 
+const dokumentAenderungsSchema = z.object({
+  kategorie: z.enum(['ANSCHREIBEN', 'LEBENSLAUF', 'ZEUGNISSE', 'ANDERE', 'ORIGINAL']).optional(),
+  dateiname: z.string().trim().min(1).max(200).optional(),
+})
+
 dokumenteRouter.patch(
   '/:id',
   requireAuth,
-  body(
-    z.object({
-      kategorie: z.enum(['ANSCHREIBEN', 'LEBENSLAUF', 'ZEUGNISSE', 'ANDERE', 'ORIGINAL']).optional(),
-      dateiname: z.string().trim().min(1).max(200).optional(),
-    }),
-  ),
+  body(dokumentAenderungsSchema),
   wrap(async (req, res) => {
     const me = currentUser(req)
     const dokument = await prisma.document.findUnique({ where: { id: req.params.id } })
     if (!dokument) throw notFound('Dieses Dokument gibt es nicht.')
     await assertCanEditApplication(me, dokument.applicationId)
 
-    const d = req.body as { kategorie?: never; dateiname?: string }
+    const d = req.body as z.infer<typeof dokumentAenderungsSchema>
     const aktualisiert = await prisma.document.update({
       where: { id: req.params.id },
       data: {

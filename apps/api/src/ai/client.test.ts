@@ -3,7 +3,7 @@ import type { AddressInfo } from 'node:net'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { prisma } from '../db'
 import { clearSettingsCache, updateSetting } from '../settings/service'
-import { klassifiziereSeiten } from './aufgaben'
+import { erkenneBewerbung, extrahiereDaten, klassifiziereSeiten } from './aufgaben'
 import { frageKi, KiFehler, parseJson, pruefeKiVerbindung, vergissKoennen } from './client'
 
 /**
@@ -208,6 +208,95 @@ describe('Verbindungsprüfung', () => {
   })
 })
 
+describe('Unbrauchbare Antworten kleiner Modelle', () => {
+  /*
+   * Ohne erzwungenes Schema liefert ein kleines Modell hinter Ollama gern
+   * Werte, die fast stimmen. Ungeprüft weitergereicht bringt das erst beim
+   * Schreiben in die Datenbank einen Fehler – an einer Stelle, an der niemand
+   * die KI vermutet.
+   */
+  it('räumt eine falsch geschriebene Anrede auf, statt sie durchzureichen', async () => {
+    await stelleEin()
+    verhalten = {
+      akzeptiert: ['json_schema'],
+      antwort: JSON.stringify({
+        anrede: 'Frau',
+        titel: '',
+        vorname: 'Sarah',
+        nachname: 'Wendler',
+        email: '',
+        telefon: '',
+        strasse: '',
+        plz: '',
+        ort: '',
+        links: [],
+        schlagworte: [],
+      }),
+    }
+
+    const { ergebnis } = await extrahiereDaten('Text')
+    // 'Frau' würde Prisma beim Speichern ablehnen – 'FRAU' nicht.
+    expect(ergebnis.anrede).toBe('FRAU')
+  })
+
+  it('setzt eine unbekannte Anrede auf KEINE', async () => {
+    await stelleEin()
+    verhalten = { akzeptiert: ['json_schema'], antwort: JSON.stringify({ anrede: 'Fräulein' }) }
+    const { ergebnis } = await extrahiereDaten('Text')
+    expect(ergebnis.anrede).toBe('KEINE')
+  })
+
+  it('macht aus einem einzelnen Link eine Liste', async () => {
+    await stelleEin()
+    verhalten = {
+      akzeptiert: ['json_schema'],
+      antwort: JSON.stringify({ links: 'https://example.com/profil', schlagworte: 'InDesign' }),
+    }
+    const { ergebnis } = await extrahiereDaten('Text')
+    expect(ergebnis.links).toEqual(['https://example.com/profil'])
+    expect(ergebnis.schlagworte).toEqual(['InDesign'])
+  })
+
+  it('fängt fehlende Felder ab, statt zu werfen', async () => {
+    await stelleEin()
+    verhalten = { akzeptiert: ['json_schema'], antwort: '{}' }
+    const { ergebnis } = await extrahiereDaten('Text')
+    expect(ergebnis).toMatchObject({ anrede: 'KEINE', vorname: '', nachname: '', links: [] })
+  })
+
+  it('begrenzt die Schlagworte auf fünf', async () => {
+    await stelleEin()
+    verhalten = {
+      akzeptiert: ['json_schema'],
+      antwort: JSON.stringify({ schlagworte: ['a', 'b', 'c', 'd', 'e', 'f', 'g'] }),
+    }
+    const { ergebnis } = await extrahiereDaten('Text')
+    expect(ergebnis.schlagworte).toHaveLength(5)
+  })
+
+  it('holt eine Verlässlichkeit außerhalb von 0 bis 1 zurück in den Rahmen', async () => {
+    await stelleEin()
+    verhalten = {
+      akzeptiert: ['json_schema'],
+      antwort: JSON.stringify({ istBewerbung: 'true', initiativ: false, stellenId: null, sicherheit: 95, begruendung: 'passt' }),
+    }
+    const { ergebnis } = await erkenneBewerbung('Betreff', 'Text', [])
+    expect(ergebnis.sicherheit).toBe(1)
+    // Auch ein Ja als Zeichenkette wird richtig verstanden.
+    expect(ergebnis.istBewerbung).toBe(true)
+  })
+
+  it('verwirft eine erfundene Stellen-Kennung', async () => {
+    await stelleEin()
+    verhalten = {
+      akzeptiert: ['json_schema'],
+      antwort: JSON.stringify({ istBewerbung: true, initiativ: false, stellenId: 'gibt-es-nicht', sicherheit: 0.9, begruendung: '' }),
+    }
+    const { ergebnis } = await erkenneBewerbung('Betreff', 'Text', [])
+    expect(ergebnis.stellenId).toBeNull()
+  })
+})
+
 describe('Seitenklassifikation', () => {
   const seiten = [
     { seite: 1, text: 'Bewerbung als Mediengestalter' },
@@ -250,6 +339,17 @@ describe('Seitenklassifikation', () => {
     expect(zuordnung).toHaveLength(3)
     expect(zuordnung[2].kategorie).toBe('LEBENSLAUF')
     expect(zuordnung[2].begruendung).toContain('wie die Seite davor')
+  })
+
+  it('kommt mit einer völlig unbrauchbaren Antwort zurecht', async () => {
+    await stelleEin()
+    verhalten = { akzeptiert: ['json_schema'], antwort: JSON.stringify({ zuordnung: 'keine Ahnung' }) }
+
+    const { zuordnung } = await klassifiziereSeiten(seiten)
+    // Jede Seite bekommt trotzdem einen Eintrag – die Split-Ansicht bleibt
+    // benutzbar, sie ist nur nicht vorgefüllt.
+    expect(zuordnung).toHaveLength(3)
+    expect(zuordnung.every((z) => z.kategorie === 'ANDERE')).toBe(true)
   })
 
   it('wirft erfundene Kategorien und Seitenzahlen heraus', async () => {

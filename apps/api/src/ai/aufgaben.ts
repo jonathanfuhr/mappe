@@ -1,6 +1,47 @@
 import type { DocumentCategory, Job } from '@prisma/client'
+import { z } from 'zod'
 import { getSetting } from '../settings/service'
 import { frageKi } from './client'
+
+/**
+ * Jede Antwort wird nachträglich geprüft – auch dann, wenn sie über ein
+ * JSON-Schema angefordert wurde.
+ *
+ * Der Grund: Ob das Schema wirklich erzwungen wurde, hängt vom Endpunkt ab.
+ * Ein kleines Modell hinter Ollama liefert ohne Schemazwang gern „Frau" statt
+ * „FRAU" oder einen String, wo eine Liste erwartet wird. Ungeprüft
+ * weitergereicht bringt das erst viel später einen Datenbankfehler – an einer
+ * Stelle, an der niemand die KI vermutet.
+ *
+ * Die Schemata sind bewusst nachsichtig: Sie räumen auf, was sich aufräumen
+ * lässt, und setzen den Rest auf einen harmlosen Vorgabewert.
+ */
+
+/** Nimmt „frau", „Frau", „FRAU" – alles andere wird zu KEINE. */
+const anredeSchema = z
+  .unknown()
+  .transform((wert) => (typeof wert === 'string' ? wert.trim().toUpperCase() : ''))
+  .transform((wert) => (['KEINE', 'FRAU', 'HERR', 'DIVERS'].includes(wert) ? wert : 'KEINE'))
+  .pipe(z.enum(['KEINE', 'FRAU', 'HERR', 'DIVERS']))
+
+/** Alles, was kein String ist, wird zum leeren String statt zum Fehler. */
+const textSchema = z
+  .unknown()
+  .transform((wert) => (typeof wert === 'string' ? wert.trim() : ''))
+
+/** Auch ein einzelner String kommt als Liste zurück. */
+const textListeSchema = z.unknown().transform((wert) => {
+  if (Array.isArray(wert)) return wert.filter((e): e is string => typeof e === 'string' && e.trim() !== '')
+  if (typeof wert === 'string' && wert.trim()) return [wert.trim()]
+  return []
+})
+
+const zahlSchema = z.unknown().transform((wert) => {
+  const zahl = typeof wert === 'number' ? wert : Number(wert)
+  return Number.isFinite(zahl) ? Math.min(1, Math.max(0, zahl)) : 0
+})
+
+const jaNeinSchema = z.unknown().transform((wert) => wert === true || wert === 'true')
 
 /**
  * Die vier KI-Aufgaben aus dem Plan. Jede liefert ausschließlich Vorschläge –
@@ -81,17 +122,23 @@ export async function erkenneBewerbung(
     maxTokens: 400,
   })
 
+  const geprueft = erkennungsSchema.parse(antwort.daten)
+
   // Eine erfundene Stellen-Kennung darf niemals in die Datenbank wandern.
-  const gueltig = stellen.some((s) => s.id === antwort.daten.stellenId)
+  const gueltig = stellen.some((s) => s.id === geprueft.stellenId)
   return {
-    ergebnis: {
-      ...antwort.daten,
-      stellenId: gueltig ? antwort.daten.stellenId : null,
-      sicherheit: begrenze(antwort.daten.sicherheit),
-    },
+    ergebnis: { ...geprueft, stellenId: gueltig ? geprueft.stellenId : null },
     modell: antwort.modell,
   }
 }
+
+const erkennungsSchema = z.object({
+  istBewerbung: jaNeinSchema,
+  initiativ: jaNeinSchema,
+  stellenId: z.unknown().transform((w) => (typeof w === 'string' && w.trim() ? w.trim() : null)),
+  sicherheit: zahlSchema,
+  begruendung: textSchema,
+})
 
 // ---------------------------------------------------------------------------
 // 2) Kontakt- und Eckdaten als strukturiertes JSON
@@ -163,8 +210,23 @@ export async function extrahiereDaten(
     maxTokens: 800,
   })
 
-  return { ergebnis: antwort.daten, modell: antwort.modell }
+  return { ergebnis: extraktionsSchema.parse(antwort.daten), modell: antwort.modell }
 }
+
+const extraktionsSchema = z.object({
+  anrede: anredeSchema,
+  titel: textSchema,
+  vorname: textSchema,
+  nachname: textSchema,
+  email: textSchema,
+  telefon: textSchema,
+  strasse: textSchema,
+  plz: textSchema,
+  ort: textSchema,
+  links: textListeSchema,
+  // Fünf Stichworte genügen; mehr bläht die Anzeige nur auf.
+  schlagworte: textListeSchema.transform((liste) => liste.slice(0, 5)),
+})
 
 // ---------------------------------------------------------------------------
 // 3) Kurzzusammenfassung
@@ -201,7 +263,8 @@ export async function fasseZusammen(
     maxTokens: 600,
   })
 
-  return { zusammenfassung: antwort.daten.zusammenfassung.trim(), modell: antwort.modell }
+  const gefasst = textSchema.parse((antwort.daten as { zusammenfassung?: unknown }).zusammenfassung)
+  return { zusammenfassung: gefasst, modell: antwort.modell }
 }
 
 // ---------------------------------------------------------------------------
@@ -266,7 +329,8 @@ export async function klassifiziereSeiten(
 
   // Was die KI ausgelassen oder erfunden hat, wird hier begradigt: Für jede
   // echte Seite muss genau ein Eintrag herauskommen.
-  const nachSeite = new Map(antwort.daten.zuordnung.map((z) => [z.seite, z]))
+  const roh = zuordnungsSchema.parse(antwort.daten)
+  const nachSeite = new Map(roh.zuordnung.map((z) => [z.seite, z]))
   let laufend: DocumentCategory = 'ANDERE'
   const zuordnung: SeitenZuordnung[] = seiten.map((s) => {
     const treffer = nachSeite.get(s.seite)
@@ -280,7 +344,28 @@ export async function klassifiziereSeiten(
   return { zuordnung, modell: antwort.modell }
 }
 
-function begrenze(wert: number): number {
-  if (!Number.isFinite(wert)) return 0
-  return Math.min(1, Math.max(0, wert))
-}
+/**
+ * Eine unbrauchbare Zuordnung wird zur leeren Liste, nicht zum Fehler – die
+ * Schleife darunter füllt dann jede Seite mit der Kategorie der Seite davor.
+ */
+const zuordnungsSchema = z.object({
+  zuordnung: z
+    .unknown()
+    .transform((wert) => (Array.isArray(wert) ? wert : []))
+    .transform((liste) =>
+      liste
+        .map((eintrag) => {
+          if (typeof eintrag !== 'object' || eintrag === null) return null
+          const e = eintrag as Record<string, unknown>
+          const seite = Number(e.seite)
+          const kategorie = typeof e.kategorie === 'string' ? e.kategorie.trim().toUpperCase() : ''
+          if (!Number.isInteger(seite) || seite < 1) return null
+          return {
+            seite,
+            kategorie: kategorie as DocumentCategory,
+            begruendung: typeof e.begruendung === 'string' ? e.begruendung : '',
+          }
+        })
+        .filter((e): e is SeitenZuordnung => e !== null),
+    ),
+})

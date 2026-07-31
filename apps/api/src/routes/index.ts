@@ -43,7 +43,9 @@ apiRouter.get(
 
     const [nachPhase, zuPruefen, offeneStellen, letzte] = await Promise.all([
       prisma.application.groupBy({ by: ['stage'], where: sichtbar, _count: true }),
-      prisma.application.count({ where: { ...sichtbar, needsReview: true } }),
+      // AND statt Spread: sichtbar kann ein OR enthalten, das ein danebenstehendes
+      // Feld sonst überschreiben würde.
+      prisma.application.count({ where: { AND: [sichtbar, { needsReview: true }] } }),
       prisma.job.count({ where: { status: 'OFFEN', speculative: false } }),
       prisma.application.findMany({
         where: sichtbar,
