@@ -1,5 +1,7 @@
 import { getSetting } from '../settings/service'
+import { GmailAdapter } from './gmail'
 import { GraphAdapter } from './graph'
+import { ImapAdapter } from './imap'
 import { MailFehler, type MailAdapter } from './types'
 
 /**
@@ -14,11 +16,9 @@ export async function holeAdapter(): Promise<MailAdapter | null> {
     case 'graph':
       return new GraphAdapter(mail.graph)
     case 'imap':
+      return new ImapAdapter(mail.imap)
     case 'gmail':
-      throw new MailFehler(
-        `Der Adapter „${mail.adapter}" ist in dieser Fassung noch nicht enthalten. ` +
-          `Zurzeit steht Microsoft 365 (Graph) bereit.`,
-      )
+      return new GmailAdapter(mail.gmail)
     default:
       throw new MailFehler(`Unbekannter Mail-Adapter: ${String(mail.adapter)}`)
   }
@@ -27,6 +27,6 @@ export async function holeAdapter(): Promise<MailAdapter | null> {
 export const VERFUEGBARE_ADAPTER = [
   { schluessel: 'aus', name: 'Kein Postfach angebunden', verfuegbar: true },
   { schluessel: 'graph', name: 'Microsoft 365 (Graph API)', verfuegbar: true },
-  { schluessel: 'imap', name: 'IMAP/SMTP (iCloud, Hoster)', verfuegbar: false },
-  { schluessel: 'gmail', name: 'Google Workspace (Gmail API)', verfuegbar: false },
+  { schluessel: 'imap', name: 'IMAP/SMTP (iCloud, Hoster)', verfuegbar: true },
+  { schluessel: 'gmail', name: 'Google Workspace (Gmail API)', verfuegbar: true },
 ] as const

@@ -167,6 +167,21 @@ function AllgemeinBereich() {
 interface MailEinstellungen {
   adapter: 'aus' | 'graph' | 'imap' | 'gmail'
   graph: { tenantId: string; clientId: string; clientSecret: string; postfach: string }
+  imap: {
+    host: string
+    port: number
+    secure: boolean
+    benutzer: string
+    passwort: string
+    ordner: string
+    smtpHost: string
+    smtpPort: number
+    smtpSecure: boolean
+    smtpBenutzer: string
+    smtpPasswort: string
+    absender: string
+  }
+  gmail: { clientId: string; clientSecret: string; refreshToken: string; postfach: string }
   regeln: { alsGelesenMarkieren: boolean; inOrdnerVerschieben: boolean; ordnerName: string }
   weiterleitungsAdressen: string[]
   automatischAbrufen: boolean
@@ -273,6 +288,26 @@ function MailBereich() {
               )}
             </>
           )}
+
+          {wert.adapter === 'imap' && (
+            <ImapFelder
+              wert={wert}
+              setze={setze}
+              pruefen={pruefen}
+              pruefErgebnis={pruefErgebnis}
+              geaendert={geaendert}
+            />
+          )}
+
+          {wert.adapter === 'gmail' && (
+            <GmailFelder
+              wert={wert}
+              setze={setze}
+              pruefen={pruefen}
+              pruefErgebnis={pruefErgebnis}
+              geaendert={geaendert}
+            />
+          )}
         </div>
         <SpeichernLeiste geaendert={geaendert} laedt={speichern.isPending} onSpeichern={() => speichern.mutate()} />
       </Karte>
@@ -340,6 +375,185 @@ function MailBereich() {
         </Karte>
       )}
     </div>
+  )
+}
+
+interface MailBereichsProps {
+  wert: MailEinstellungen & GesetztKennzeichen
+  setze: <K extends keyof MailEinstellungen>(feld: K, neu: MailEinstellungen[K]) => void
+  pruefen: { mutate: () => void; isPending: boolean }
+  pruefErgebnis: { ok: boolean; meldung: string } | null
+  geaendert: boolean
+}
+
+function PruefLeiste({
+  pruefen,
+  pruefErgebnis,
+  geaendert,
+}: Pick<MailBereichsProps, 'pruefen' | 'pruefErgebnis' | 'geaendert'>) {
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button variante="umriss" onClick={() => pruefen.mutate()} laedt={pruefen.isPending}>
+          {t('mail.verbindungPruefen')}
+        </Button>
+        {pruefErgebnis && (
+          <span
+            className={clsx(
+              'inline-flex items-center gap-1.5 text-sm',
+              pruefErgebnis.ok ? 'text-emerald-700' : 'text-red-700',
+            )}
+          >
+            {pruefErgebnis.ok ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+            {pruefErgebnis.meldung}
+          </span>
+        )}
+      </div>
+      {geaendert && (
+        <p className="text-xs text-slate-500">
+          Die Prüfung nutzt die gespeicherten Werte – bitte zuerst speichern.
+        </p>
+      )}
+    </>
+  )
+}
+
+function ImapFelder({ wert, setze, ...rest }: MailBereichsProps) {
+  const imap = wert.imap ?? {
+    host: '',
+    port: 993,
+    secure: true,
+    benutzer: '',
+    passwort: '',
+    ordner: 'INBOX',
+    smtpHost: '',
+    smtpPort: 587,
+    smtpSecure: false,
+    smtpBenutzer: '',
+    smtpPasswort: '',
+    absender: '',
+  }
+  const setzeImap = <K extends keyof typeof imap>(feld: K, neu: (typeof imap)[K]) =>
+    setze('imap', { ...imap, [feld]: neu })
+
+  return (
+    <>
+      <Hinweis ton="info">{t('mail.imapHinweis')}</Hinweis>
+
+      <div className="grid gap-4 sm:grid-cols-[1fr_8rem]">
+        <Input
+          label={t('mail.imapHost')}
+          value={imap.host}
+          onChange={(e) => setzeImap('host', e.target.value)}
+          placeholder="imap.mail.me.com"
+        />
+        <Input
+          type="number"
+          label={t('mail.port')}
+          value={imap.port}
+          onChange={(e) => setzeImap('port', Number(e.target.value))}
+        />
+      </div>
+      <Checkbox
+        label={t('mail.tls')}
+        checked={imap.secure}
+        onChange={(e) => setzeImap('secure', e.target.checked)}
+      />
+      <Input
+        label={t('mail.benutzer')}
+        value={imap.benutzer}
+        onChange={(e) => setzeImap('benutzer', e.target.value)}
+      />
+      <Input
+        label={t('mail.passwort')}
+        type="password"
+        value={imap.passwort}
+        onChange={(e) => setzeImap('passwort', e.target.value)}
+        placeholder={wert._gesetzt?.['imap.passwort'] ? '••••••••' : ''}
+        hilfe={t('mail.appPasswortHilfe')}
+      />
+      <Input
+        label={t('mail.ordner')}
+        value={imap.ordner}
+        onChange={(e) => setzeImap('ordner', e.target.value)}
+      />
+
+      <div className="border-t border-slate-100 pt-4">
+        <h4 className="mb-3 text-sm font-semibold text-slate-900">{t('mail.smtpTitel')}</h4>
+        <div className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-[1fr_8rem]">
+            <Input
+              label={t('mail.smtpHost')}
+              value={imap.smtpHost}
+              onChange={(e) => setzeImap('smtpHost', e.target.value)}
+              placeholder="smtp.mail.me.com"
+            />
+            <Input
+              type="number"
+              label={t('mail.port')}
+              value={imap.smtpPort}
+              onChange={(e) => setzeImap('smtpPort', Number(e.target.value))}
+            />
+          </div>
+          <Checkbox
+            label={t('mail.tlsDirekt')}
+            hilfe={t('mail.tlsDirektHilfe')}
+            checked={imap.smtpSecure}
+            onChange={(e) => setzeImap('smtpSecure', e.target.checked)}
+          />
+          <Input
+            label={t('mail.absender')}
+            hilfe={t('mail.absenderHilfe')}
+            value={imap.absender}
+            onChange={(e) => setzeImap('absender', e.target.value)}
+          />
+        </div>
+      </div>
+
+      <PruefLeiste {...rest} />
+    </>
+  )
+}
+
+function GmailFelder({ wert, setze, ...rest }: MailBereichsProps) {
+  const gmail = wert.gmail ?? { clientId: '', clientSecret: '', refreshToken: '', postfach: '' }
+  const setzeGmail = <K extends keyof typeof gmail>(feld: K, neu: (typeof gmail)[K]) =>
+    setze('gmail', { ...gmail, [feld]: neu })
+
+  return (
+    <>
+      <Hinweis ton="info">{t('mail.gmailHinweis')}</Hinweis>
+
+      <Input
+        label={t('mail.postfach')}
+        hilfe={t('mail.postfachHilfe')}
+        value={gmail.postfach}
+        onChange={(e) => setzeGmail('postfach', e.target.value)}
+        placeholder="bewerbung@firma.de"
+      />
+      <Input
+        label={t('mail.clientId')}
+        value={gmail.clientId}
+        onChange={(e) => setzeGmail('clientId', e.target.value)}
+      />
+      <Input
+        label={t('mail.clientSecret')}
+        type="password"
+        value={gmail.clientSecret}
+        onChange={(e) => setzeGmail('clientSecret', e.target.value)}
+        placeholder={wert._gesetzt?.['gmail.clientSecret'] ? '••••••••' : ''}
+      />
+      <Input
+        label={t('mail.refreshToken')}
+        type="password"
+        hilfe={t('mail.refreshTokenHilfe')}
+        value={gmail.refreshToken}
+        onChange={(e) => setzeGmail('refreshToken', e.target.value)}
+        placeholder={wert._gesetzt?.['gmail.refreshToken'] ? '••••••••' : ''}
+      />
+
+      <PruefLeiste {...rest} />
+    </>
   )
 }
 

@@ -88,7 +88,56 @@ export function ProfilPage() {
             </Button>
           </form>
         </Karte>
+
+        <UeberMappe />
       </div>
     </Seite>
   )
 }
+
+/**
+ * Quelltext-Hinweis nach § 13 AGPL-3.0.
+ *
+ * Die Lizenz verlangt, dass Nutzer einer über ein Netzwerk erreichbaren
+ * Fassung an deren Quelltext kommen. Ein Link in der Oberfläche ist der
+ * einfachste Weg, das zu erfüllen – wer Mappe verändert weitergibt, trägt hier
+ * die eigene Adresse ein.
+ */
+function UeberMappe() {
+  return (
+    <Karte titel="Über Mappe">
+      <div className="space-y-2 text-sm leading-relaxed text-slate-600">
+        <p>
+          Mappe ist freie Software unter der{' '}
+          <a
+            href="https://www.gnu.org/licenses/agpl-3.0.html"
+            target="_blank"
+            rel="noreferrer noopener"
+            className="text-brand-700 hover:underline"
+          >
+            GNU Affero General Public License, Version 3
+          </a>
+          .
+        </p>
+        <p>
+          Der vollständige Quelltext dieser Fassung ist abrufbar unter{' '}
+          <a
+            href={QUELLTEXT_URL}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="text-brand-700 hover:underline"
+          >
+            {QUELLTEXT_URL}
+          </a>
+          .
+        </p>
+      </div>
+    </Karte>
+  )
+}
+
+/**
+ * Wer Mappe verändert betreibt, muss hier auf den eigenen Quelltext zeigen –
+ * das verlangt § 13 der AGPL.
+ */
+const QUELLTEXT_URL = 'https://github.com/jonathanfuhr/mappe'
