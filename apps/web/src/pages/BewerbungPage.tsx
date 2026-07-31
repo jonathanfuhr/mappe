@@ -10,6 +10,7 @@ import {
   Paperclip,
   Phone,
   Scissors,
+  Send,
   Trash2,
   Upload,
 } from 'lucide-react'
@@ -17,6 +18,7 @@ import { useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { KategorieBadge, PhasenBadge, QuellenBadge } from '../components/Anzeigen'
 import { BewertungsKarte, NotizenKarte } from '../components/BewertungUndNotizen'
+import { MailSendenDialog } from '../components/MailSendenDialog'
 import { Seite } from '../components/Layout'
 import { PdfBetrachter } from '../components/PdfBetrachter'
 import { SplitAnsicht } from '../components/SplitAnsicht'
@@ -43,11 +45,17 @@ export function BewerbungPage() {
   const queryClient = useQueryClient()
   const { darfBearbeiten } = useAuth()
   const [loeschenOffen, setLoeschenOffen] = useState(false)
+  const [mailOffen, setMailOffen] = useState(false)
 
   const { data: bewerbung, isLoading } = useQuery({
     queryKey: ['bewerbung', id],
     queryFn: () => api.get<Bewerbung>(`/bewerbungen/${id}`),
     enabled: Boolean(id),
+  })
+
+  const { data: einstellungen } = useQuery({
+    queryKey: ['einstellungen-oeffentlich'],
+    queryFn: () => api.get<{ mailAktiv: boolean; kiAktiv: boolean }>('/einstellungen/oeffentlich'),
   })
 
   const { data: stellen } = useQuery({
@@ -134,6 +142,10 @@ export function BewerbungPage() {
 
         {darfBearbeiten && (
           <div className="flex flex-wrap items-center gap-2">
+            <Button variante="umriss" onClick={() => setMailOffen(true)}>
+              <Send className="h-4 w-4" />
+              {t('senden.titel')}
+            </Button>
             <Select
               value={bewerbung.stage}
               onChange={(e) => phaseAendern.mutate(e.target.value as Phase)}
@@ -267,6 +279,14 @@ export function BewerbungPage() {
           {bewerbung.mails.length > 0 && <MailVerlauf bewerbung={bewerbung} />}
         </div>
       </div>
+
+      <MailSendenDialog
+        offen={mailOffen}
+        onSchliessen={() => setMailOffen(false)}
+        bewerbung={bewerbung}
+        mailAktiv={einstellungen?.mailAktiv ?? false}
+        onGesendet={aktualisiere}
+      />
 
       <BestaetigenDialog
         offen={loeschenOffen}

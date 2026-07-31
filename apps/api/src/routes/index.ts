@@ -11,6 +11,7 @@ import { bewertungenRouter, kommentareRouter, notizenRouter } from './bewertunge
 import { dokumenteRouter } from './dokumente'
 import { stellenRouter } from './stellen'
 import { usersRouter } from './users'
+import { freifelderRouter, vorlagenRouter } from './vorlagen'
 
 export const apiRouter = Router()
 
@@ -22,6 +23,8 @@ apiRouter.use('/dokumente', dokumenteRouter)
 apiRouter.use('/bewertungen', bewertungenRouter)
 apiRouter.use('/notizen', notizenRouter)
 apiRouter.use('/kommentare', kommentareRouter)
+apiRouter.use('/vorlagen', vorlagenRouter)
+apiRouter.use('/freifelder', freifelderRouter)
 apiRouter.use('/mail', mailRouter)
 
 /** Zahlen für die Startseite. */

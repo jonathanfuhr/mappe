@@ -13,6 +13,7 @@ import { NutzerPage } from './pages/NutzerPage'
 import { PosteingangPage } from './pages/PosteingangPage'
 import { ProfilPage } from './pages/ProfilPage'
 import { StellenPage } from './pages/StellenPage'
+import { VorlagenPage } from './pages/VorlagenPage'
 import { UebersichtPage } from './pages/UebersichtPage'
 
 /** Sperrt eine Route für Rollen, die dort nichts zu suchen haben. */
@@ -86,6 +87,14 @@ export function App() {
           element={
             <NurFuer rollen={NUR_ADMIN}>
               <NutzerPage />
+            </NurFuer>
+          }
+        />
+        <Route
+          path="/vorlagen"
+          element={
+            <NurFuer rollen={NUR_ADMIN}>
+              <VorlagenPage />
             </NurFuer>
           }
         />
