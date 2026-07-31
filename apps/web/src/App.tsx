@@ -4,8 +4,13 @@ import { Hinweis, LadeZustand } from './components/ui'
 import { t } from './i18n'
 import { useAuth, type Rolle } from './lib/auth'
 import { AnmeldenPage } from './pages/AnmeldenPage'
+import { BewerbungPage } from './pages/BewerbungPage'
+import { BewerbungenPage } from './pages/BewerbungenPage'
+import { EinstellungenPage } from './pages/EinstellungenPage'
 import { NutzerPage } from './pages/NutzerPage'
+import { PosteingangPage } from './pages/PosteingangPage'
 import { ProfilPage } from './pages/ProfilPage'
+import { StellenPage } from './pages/StellenPage'
 import { UebersichtPage } from './pages/UebersichtPage'
 
 /** Sperrt eine Route für Rollen, die dort nichts zu suchen haben. */
@@ -25,6 +30,9 @@ function NurFuer({ rollen, children }: { rollen: Rolle[]; children: JSX.Element 
   return children
 }
 
+const NUR_TEAM: Rolle[] = ['ADMIN', 'RECRUITER']
+const NUR_ADMIN: Rolle[] = ['ADMIN']
+
 export function App() {
   const { nutzer, laedt } = useAuth()
 
@@ -42,12 +50,38 @@ export function App() {
     <Routes>
       <Route element={<Layout />}>
         <Route path="/" element={<UebersichtPage />} />
+        <Route path="/bewerbungen" element={<BewerbungenPage />} />
+        <Route path="/bewerbungen/:id" element={<BewerbungPage />} />
+        <Route
+          path="/stellen"
+          element={
+            <NurFuer rollen={NUR_TEAM}>
+              <StellenPage />
+            </NurFuer>
+          }
+        />
+        <Route
+          path="/posteingang"
+          element={
+            <NurFuer rollen={NUR_TEAM}>
+              <PosteingangPage />
+            </NurFuer>
+          }
+        />
         <Route path="/profil" element={<ProfilPage />} />
         <Route
           path="/nutzer"
           element={
-            <NurFuer rollen={['ADMIN']}>
+            <NurFuer rollen={NUR_ADMIN}>
               <NutzerPage />
+            </NurFuer>
+          }
+        />
+        <Route
+          path="/einstellungen"
+          element={
+            <NurFuer rollen={NUR_ADMIN}>
+              <EinstellungenPage />
             </NurFuer>
           }
         />

@@ -2,8 +2,11 @@
   "compilerOptions": {
     "target": "ES2022",
     "lib": ["ES2022"],
-    "module": "commonjs",
-    "moduleResolution": "node",
+    // node16 statt commonjs: nur so bleibt ein dynamisches import() im
+    // erzeugten CommonJS erhalten. pdfjs-dist liefert ausschließlich ESM und
+    // ließe sich sonst gar nicht laden.
+    "module": "node16",
+    "moduleResolution": "node16",
     "outDir": "dist",
     "rootDir": "src",
     "strict": true,
