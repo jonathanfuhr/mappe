@@ -1,0 +1,50 @@
+# Mappe – App und Datenbank.
+# Start:  cp .env.example .env  &&  docker compose up -d
+#
+# Läuft auf Synology, Unraid, Mac mini oder jedem anderen Docker-Host.
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mappe}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD fehlt in der .env}
+      POSTGRES_DB: ${POSTGRES_DB:-mappe}
+      # Sonst legt Postgres die Sortierung nach der Locale des Hosts fest und
+      # ein Umzug auf einen anderen Server bricht die Indizes.
+      POSTGRES_INITDB_ARGS: '--encoding=UTF8 --locale=C'
+    volumes:
+      - db-daten:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-mappe} -d ${POSTGRES_DB:-mappe}']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-mappe}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-mappe}?schema=public
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET fehlt in der .env}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY fehlt in der .env}
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      STORAGE_DIR: /data/storage
+      PORT: 3000
+      NODE_ENV: production
+      TZ: ${TZ:-Europe/Berlin}
+    ports:
+      - '${PORT:-3000}:3000'
+    volumes:
+      - dokumente:/data/storage
+
+volumes:
+  db-daten:
+  dokumente:

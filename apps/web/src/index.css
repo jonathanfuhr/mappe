@@ -1,0 +1,100 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-slate-50 text-slate-900;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Ein durchgehender, gut sichtbarer Fokusring – wichtig für die
+     Tastaturbedienung in einer Anwendung, in der viel getippt wird. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-brand-500 ring-offset-2 ring-offset-white;
+  }
+
+  ::selection {
+    @apply bg-brand-200 text-brand-900;
+  }
+}
+
+@layer components {
+  .feld-label {
+    @apply mb-1.5 block text-sm font-medium text-slate-700;
+  }
+
+  .feld-hilfe {
+    @apply mt-1.5 text-xs leading-relaxed text-slate-500;
+  }
+
+  .feld-fehler {
+    @apply mt-1.5 text-xs font-medium text-red-600;
+  }
+
+  .karte {
+    @apply rounded-xl border border-slate-200 bg-white shadow-sm;
+  }
+
+  .tabelle {
+    @apply w-full border-collapse text-sm;
+  }
+
+  .tabelle th {
+    @apply border-b border-slate-200 px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500;
+  }
+
+  .tabelle td {
+    @apply border-b border-slate-100 px-4 py-3 align-middle text-slate-700;
+  }
+
+  .tabelle tbody tr:hover {
+    @apply bg-slate-50;
+  }
+
+  /* Schmale, unaufdringliche Bildlaufleisten – die Oberfläche hat viele
+     scrollbare Bereiche (Board-Spalten, Mailverlauf, PDF-Seiten). */
+  .duenner-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(203 213 225) transparent;
+  }
+
+  .duenner-scroll::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .duenner-scroll::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-slate-300;
+  }
+
+  .duenner-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

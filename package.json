@@ -1,0 +1,23 @@
+{
+  "name": "mappe",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Mappe – selbst gehostetes Bewerbungsmanagement (ATS)",
+  "license": "AGPL-3.0-or-later",
+  "workspaces": [
+    "apps/api",
+    "apps/web"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "npm run dev --workspace=@mappe/api & npm run dev --workspace=@mappe/web",
+    "build": "npm run build --workspace=@mappe/api && npm run build --workspace=@mappe/web",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "prisma:generate": "npm run prisma:generate --workspace=@mappe/api",
+    "prisma:migrate": "npm run prisma:migrate --workspace=@mappe/api",
+    "seed": "npm run seed --workspace=@mappe/api"
+  }
+}

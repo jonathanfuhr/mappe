@@ -1,0 +1,605 @@
+// Mappe – Datenmodell
+//
+// Grundsatz: Alles, was das Tool automatisch erkennt, landet als *Vorschlag*
+// (ExtractionSuggestion) und wird erst durch Bestätigen zum Datensatz.
+// Persönliche Daten hängen an Candidate und werden von den Löschfristen erfasst.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Nutzer & Rollen
+// ---------------------------------------------------------------------------
+
+enum Role {
+  ADMIN
+  RECRUITER
+  INTERVIEWER
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  name         String
+  passwordHash String?
+  role         Role     @default(RECRUITER)
+  active       Boolean  @default(true)
+  // Wird bei jedem Passwortwechsel / Sperren erhöht und entwertet alte Sitzungen
+  tokenVersion Int      @default(0)
+  // Entra-ID (Microsoft-Login) – wird erst bei der ersten SSO-Anmeldung gesetzt
+  entraOid     String?  @unique
+  lastLoginAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  ratings             Rating[]
+  notes               Note[]
+  pdfComments         PdfComment[]
+  interviews          Interview[]
+  applicationAccess   ApplicationAssignment[]
+  jobAccess           JobAssignment[]
+  auditLogs           AuditLog[]
+  sentMails           MailMessage[]
+
+  @@index([role])
+}
+
+// ---------------------------------------------------------------------------
+// Stellen
+// ---------------------------------------------------------------------------
+
+enum JobStatus {
+  ENTWURF
+  OFFEN
+  GESCHLOSSEN
+}
+
+model Job {
+  id          String    @id @default(uuid())
+  title       String
+  reference   String?
+  location    String?
+  department  String?
+  employment  String?
+  // Die Stellenbeschreibung bleibt dauerhaft erhalten: zum Wiederverwenden
+  // bei erneuter Ausschreibung und als Kontext für die KI-Zuordnung.
+  description String    @default("")
+  // Stichworte für die regelbasierte Zuordnung über den Mail-Betreff
+  keywords    String[]  @default([])
+  status      JobStatus @default(OFFEN)
+  // Sonderfall Initiativbewerbung – steuert die passenden Mail-Vorlagen
+  speculative Boolean   @default(false)
+  openedAt    DateTime  @default(now())
+  closedAt    DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  applications Application[]
+  assignments  JobAssignment[]
+  interviewTemplates InterviewTemplate[]
+
+  @@index([status])
+  @@index([speculative])
+}
+
+// ---------------------------------------------------------------------------
+// Bewerber (Person)
+// ---------------------------------------------------------------------------
+
+enum Salutation {
+  KEINE
+  FRAU
+  HERR
+  DIVERS
+}
+
+model Candidate {
+  id         String     @id @default(uuid())
+  salutation Salutation @default(KEINE)
+  title      String?
+  firstName  String     @default("")
+  lastName   String     @default("")
+  email      String?
+  phone      String?
+  street     String?
+  postalCode String?
+  city       String?
+  country    String?
+  // Freie Links (LinkedIn, Xing, Portfolio) als [{ label, url }]
+  links      Json       @default("[]")
+  birthDate  DateTime?
+
+  // DSGVO: Einwilligung zur längeren Speicherung (Talent-Pool).
+  // Gesetzt = von der automatischen Löschung ausgenommen.
+  storageConsent     Boolean   @default(false)
+  storageConsentDate DateTime?
+  // Wird vom Fristen-Job berechnet: ab wann diese Person gelöscht werden darf
+  purgeDueAt         DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  applications Application[]
+  notes        Note[]
+  mails        MailMessage[]
+  fieldValues  CustomFieldValue[]
+
+  @@index([email])
+  @@index([lastName, firstName])
+  @@index([purgeDueAt])
+}
+
+// ---------------------------------------------------------------------------
+// Bewerbungen
+// ---------------------------------------------------------------------------
+
+enum ApplicationSource {
+  EMAIL
+  WEBSITE_FORMULAR
+  LINKEDIN
+  INDEED
+  MANUELL
+  SONSTIGE
+}
+
+enum ApplicationStage {
+  NEU
+  GESICHTET
+  IN_PRUEFUNG
+  EINGELADEN
+  GESPRAECH_GEFUEHRT
+  ENTSCHEIDUNG
+  ZUSAGE
+  ABSAGE
+  ARCHIV
+}
+
+model Application {
+  id          String            @id @default(uuid())
+  candidateId String
+  candidate   Candidate         @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  jobId       String?
+  job         Job?              @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  // Initiativbewerbung: keine konkrete Stelle
+  speculative Boolean           @default(false)
+  source      ApplicationSource @default(EMAIL)
+  stage       ApplicationStage  @default(NEU)
+  stageChangedAt DateTime       @default(now())
+  // Reihenfolge innerhalb einer Board-Spalte
+  boardOrder  Int               @default(0)
+
+  subject     String?
+  // Kurzzusammenfassung (3–5 Sätze) – von der KI erzeugt, frei überschreibbar
+  summary     String?
+  summaryModel String?
+
+  // Solange gesetzt: es liegen unbestätigte Vorschläge vor
+  needsReview Boolean  @default(true)
+  reviewedAt  DateTime?
+
+  appliedAt DateTime  @default(now())
+  // Abschluss der Bewerbung (Zusage/Absage/Archiv) – Start der Löschfrist
+  closedAt  DateTime?
+  purgeDueAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  documents   Document[]
+  mails       MailMessage[]
+  ratings     Rating[]
+  notes       Note[]
+  interviews  Interview[]
+  assignments ApplicationAssignment[]
+  suggestions ExtractionSuggestion[]
+  fieldValues CustomFieldValue[]
+
+  @@index([stage])
+  @@index([jobId])
+  @@index([candidateId])
+  @@index([source])
+  @@index([purgeDueAt])
+}
+
+// Zuweisung einzelner Bewerbungen an Interviewer (Need-to-know)
+model ApplicationAssignment {
+  id            String      @id @default(uuid())
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt     DateTime    @default(now())
+
+  @@unique([applicationId, userId])
+  @@index([userId])
+}
+
+// Zuweisung kompletter Stellen an Interviewer
+model JobAssignment {
+  id        String   @id @default(uuid())
+  jobId     String
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([jobId, userId])
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Dokumente & PDF
+// ---------------------------------------------------------------------------
+
+enum DocumentCategory {
+  ANSCHREIBEN
+  LEBENSLAUF
+  ZEUGNISSE
+  ANDERE
+  // Die unveränderte Ausgangsdatei – bleibt beim Auftrennen immer erhalten
+  ORIGINAL
+}
+
+model Document {
+  id            String           @id @default(uuid())
+  applicationId String
+  application   Application      @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  category      DocumentCategory @default(ANDERE)
+  filename      String
+  storagePath   String
+  mimeType      String
+  size          Int
+  pageCount     Int?
+  // Beim Auftrennen: Verweis auf das Ursprungs-PDF
+  parentId      String?
+  parent        Document?        @relation("DocumentSplit", fields: [parentId], references: [id], onDelete: SetNull)
+  children      Document[]       @relation("DocumentSplit")
+  // Seiten des Originals, aus denen dieses Teil-PDF entstanden ist (1-basiert)
+  sourcePages   Int[]            @default([])
+  // Serverseitig extrahierter Text – Grundlage für Heuristik, Suche und KI
+  extractedText String?
+  textExtractedAt DateTime?
+  createdAt     DateTime         @default(now())
+
+  comments   PdfComment[]
+  attachment MailAttachment?
+
+  @@index([applicationId])
+  @@index([category])
+}
+
+// Kommentare an einer Textstelle. Die PDF selbst bleibt unangetastet.
+model PdfComment {
+  id         String   @id @default(uuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  page       Int
+  quotedText String   @default("")
+  // Markierungsrechtecke in relativen Seitenkoordinaten:
+  // [{ x, y, width, height }] jeweils 0..1
+  rects      Json     @default("[]")
+  body       String
+  resolved   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([documentId, page])
+}
+
+// ---------------------------------------------------------------------------
+// Mail
+// ---------------------------------------------------------------------------
+
+enum MailDirection {
+  EINGEHEND
+  AUSGEHEND
+}
+
+enum MailStatus {
+  IMPORTIERT
+  ENTWURF
+  GESENDET
+  FEHLGESCHLAGEN
+}
+
+model MailMessage {
+  id            String        @id @default(uuid())
+  applicationId String?
+  application   Application?  @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  candidateId   String?
+  candidate     Candidate?    @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  direction MailDirection
+  status    MailStatus    @default(IMPORTIERT)
+
+  // Kennungen des Anbieters – verhindern doppelten Import
+  providerMessageId String? @unique
+  internetMessageId String?
+  conversationId    String?
+
+  subject   String  @default("")
+  fromName  String  @default("")
+  fromEmail String  @default("")
+  toEmails   String[] @default([])
+  ccEmails   String[] @default([])
+  bodyText  String  @default("")
+  bodyHtml  String?
+
+  // Weiterleitungs-Erkennung: der echte Absender aus dem eingebetteten Original
+  forwarded         Boolean @default(false)
+  originalFromEmail String?
+  originalFromName  String?
+
+  // Die unveränderte Originalnachricht als .eml
+  emlPath String?
+
+  receivedAt DateTime?
+  sentAt     DateTime?
+  sentById   String?
+  sentBy     User?    @relation(fields: [sentById], references: [id], onDelete: SetNull)
+  error      String?
+
+  createdAt DateTime @default(now())
+
+  attachments MailAttachment[]
+
+  @@index([applicationId])
+  @@index([conversationId])
+  @@index([fromEmail])
+  @@index([internetMessageId])
+}
+
+model MailAttachment {
+  id            String      @id @default(uuid())
+  mailMessageId String
+  mailMessage   MailMessage @relation(fields: [mailMessageId], references: [id], onDelete: Cascade)
+  filename      String
+  storagePath   String
+  mimeType      String
+  size          Int
+  // Wenn der Anhang als Bewerbungsdokument übernommen wurde
+  documentId    String?     @unique
+  document      Document?   @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  createdAt     DateTime    @default(now())
+
+  @@index([mailMessageId])
+}
+
+// Zustand des Delta-Syncs je Adapter und Ordner
+model MailSyncState {
+  id          String    @id @default(uuid())
+  adapter     String
+  folderId    String    @default("inbox")
+  deltaLink   String?
+  uidValidity String?
+  lastUid     String?
+  lastSyncAt  DateTime?
+  lastError   String?
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([adapter, folderId])
+}
+
+// ---------------------------------------------------------------------------
+// Mail-Vorlagen
+// ---------------------------------------------------------------------------
+
+enum TemplateType {
+  EINGANGSBESTAETIGUNG
+  EINLADUNG
+  ZUSAGE
+  ABSAGE
+  INITIATIV_ABSAGE
+  NACHFRAGE
+  SONSTIGE
+}
+
+enum TemplateTone {
+  DU
+  SIE
+}
+
+model MailTemplate {
+  id        String       @id @default(uuid())
+  name      String
+  type      TemplateType
+  tone      TemplateTone
+  subject   String
+  body      String
+  // Mitgelieferte Standardvorlage – darf geändert und gelöscht werden,
+  // das Kennzeichen dient nur der Anzeige und dem Zurücksetzen.
+  seeded    Boolean      @default(false)
+  active    Boolean      @default(true)
+  sortOrder Int          @default(0)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@index([type, tone])
+}
+
+// ---------------------------------------------------------------------------
+// Freifelder
+// ---------------------------------------------------------------------------
+
+enum FieldEntity {
+  BEWERBER
+  BEWERBUNG
+}
+
+enum FieldType {
+  TEXT
+  MEHRZEILIG
+  ZAHL
+  DATUM
+  AUSWAHL
+  JA_NEIN
+}
+
+model CustomField {
+  id        String      @id @default(uuid())
+  // Platzhaltername in Vorlagen, z. B. GEHALTSWUNSCH -> $GEHALTSWUNSCH
+  key       String      @unique
+  label     String
+  entity    FieldEntity
+  type      FieldType   @default(TEXT)
+  options   String[]    @default([])
+  sortOrder Int         @default(0)
+  createdAt DateTime    @default(now())
+
+  values CustomFieldValue[]
+}
+
+model CustomFieldValue {
+  id            String       @id @default(uuid())
+  fieldId       String
+  field         CustomField  @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+  candidateId   String?
+  candidate     Candidate?   @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  applicationId String?
+  application   Application? @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  value         String       @default("")
+
+  @@unique([fieldId, candidateId])
+  @@unique([fieldId, applicationId])
+}
+
+// ---------------------------------------------------------------------------
+// Bewertung, Notizen, Gespräche
+// ---------------------------------------------------------------------------
+
+enum Verdict {
+  JA
+  VIELLEICHT
+  NEIN
+}
+
+model Rating {
+  id            String      @id @default(uuid())
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stars         Int
+  verdict       Verdict?
+  comment       String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@unique([applicationId, userId])
+  @@index([applicationId])
+}
+
+enum NoteKind {
+  ALLGEMEIN
+  GESPRAECH
+}
+
+model Note {
+  id            String       @id @default(uuid())
+  applicationId String?
+  application   Application? @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  candidateId   String?
+  candidate     Candidate?   @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind          NoteKind     @default(ALLGEMEIN)
+  body          String
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([applicationId])
+  @@index([candidateId])
+}
+
+model InterviewTemplate {
+  id        String   @id @default(uuid())
+  name      String
+  jobId     String?
+  job       Job?     @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  // Abschnitte und Fragen: [{ title, questions: [{ id, text, hint }] }]
+  sections  Json     @default("[]")
+  seeded    Boolean  @default(false)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  interviews Interview[]
+}
+
+model Interview {
+  id            String             @id @default(uuid())
+  applicationId String
+  application   Application        @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  templateId    String?
+  template      InterviewTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  userId        String
+  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title         String             @default("Gespräch")
+  conductedAt   DateTime?
+  // Antworten je Frage: { [questionId]: string }
+  answers       Json               @default("{}")
+  // Freie Notizen zum Gespräch
+  notes         String             @default("")
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@index([applicationId])
+}
+
+// ---------------------------------------------------------------------------
+// Vorschläge aus Regeln und KI
+// ---------------------------------------------------------------------------
+
+enum SuggestionSource {
+  REGELN
+  KI
+}
+
+model ExtractionSuggestion {
+  id            String           @id @default(uuid())
+  applicationId String
+  application   Application      @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  source        SuggestionSource
+  model         String?
+  // { candidate: {...}, application: {...}, documents: [...], confidence: {...} }
+  payload       Json
+  appliedAt     DateTime?
+  dismissedAt   DateTime?
+  createdAt     DateTime         @default(now())
+
+  @@index([applicationId])
+}
+
+// ---------------------------------------------------------------------------
+// Einstellungen & Protokoll
+// ---------------------------------------------------------------------------
+
+// Schlüssel/Wert-Ablage für Systemeinstellungen (Mail, KI, Fristen, Login).
+// Geheimnisse werden vor dem Speichern verschlüsselt.
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String
+  entity    String
+  entityId  String?
+  meta      Json     @default("{}")
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([createdAt])
+}
