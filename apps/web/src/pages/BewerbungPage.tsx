@@ -9,18 +9,23 @@ import {
   MapPin,
   Paperclip,
   Phone,
+  Scissors,
   Trash2,
   Upload,
 } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { KategorieBadge, PhasenBadge, QuellenBadge } from '../components/Anzeigen'
+import { BewertungsKarte, NotizenKarte } from '../components/BewertungUndNotizen'
 import { Seite } from '../components/Layout'
+import { PdfBetrachter } from '../components/PdfBetrachter'
+import { SplitAnsicht } from '../components/SplitAnsicht'
 import { useToast } from '../components/Toast'
 import {
   Badge,
   BestaetigenDialog,
   Button,
+  Dialog,
   Hinweis,
   Karte,
   LadeZustand,
@@ -245,6 +250,20 @@ export function BewerbungPage() {
           )}
 
           <DokumenteKarte bewerbung={bewerbung} onGeaendert={aktualisiere} />
+
+          <BewertungsKarte
+            bewerbungId={bewerbung.id}
+            bewertungen={bewerbung.ratings}
+            schnitt={bewerbung.bewertung}
+            onGeaendert={aktualisiere}
+          />
+
+          <NotizenKarte
+            bewerbungId={bewerbung.id}
+            notizen={bewerbung.notes}
+            onGeaendert={aktualisiere}
+          />
+
           {bewerbung.mails.length > 0 && <MailVerlauf bewerbung={bewerbung} />}
         </div>
       </div>
@@ -319,6 +338,8 @@ function DokumenteKarte({ bewerbung, onGeaendert }: { bewerbung: Bewerbung; onGe
   const toast = useToast()
   const { darfBearbeiten } = useAuth()
   const dateiFeld = useRef<HTMLInputElement>(null)
+  const [betrachtet, setBetrachtet] = useState<{ id: string; name: string } | null>(null)
+  const [gesplittet, setGesplittet] = useState<{ id: string; name: string } | null>(null)
 
   const hochladen = useMutation({
     mutationFn: (dateien: FileList) => {
@@ -367,33 +388,82 @@ function DokumenteKarte({ bewerbung, onGeaendert }: { bewerbung: Bewerbung; onGe
         <p className="py-4 text-center text-sm text-slate-500">{t('bewerbungen.keineDokumente')}</p>
       ) : (
         <ul className="divide-y divide-slate-100">
-          {bewerbung.documents.map((dok) => (
-            <li key={dok.id} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
-              <KategorieBadge kategorie={dok.category} />
-              <a
-                href={`/api/dokumente/${dok.id}/datei`}
-                target="_blank"
-                rel="noreferrer"
-                className="min-w-0 flex-1 truncate text-sm font-medium text-slate-900 hover:text-brand-700 hover:underline"
-              >
-                {dok.filename}
-              </a>
-              <span className="shrink-0 whitespace-nowrap text-xs text-slate-400">
-                {dok.pageCount ? `${dok.pageCount} S. · ` : ''}
-                {formatBytes(dok.size)}
-              </span>
-              <a
-                href={`/api/dokumente/${dok.id}/datei`}
-                download
-                className="shrink-0 rounded p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
-                aria-label={`${dok.filename} herunterladen`}
-              >
-                <Download className="h-4 w-4" />
-              </a>
-            </li>
-          ))}
+          {bewerbung.documents.map((dok) => {
+            const istPdf = dok.mimeType === 'application/pdf'
+            const teilVon = dok.parentId !== null
+            return (
+              <li key={dok.id} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
+                <KategorieBadge kategorie={dok.category} />
+                <button
+                  type="button"
+                  onClick={() =>
+                    istPdf
+                      ? setBetrachtet({ id: dok.id, name: dok.filename })
+                      : window.open(`/api/dokumente/${dok.id}/datei`, '_blank')
+                  }
+                  className={clsx(
+                    'min-w-0 flex-1 truncate text-left text-sm font-medium text-slate-900 hover:text-brand-700 hover:underline',
+                    teilVon && 'pl-3',
+                  )}
+                >
+                  {dok.filename}
+                </button>
+                <span className="shrink-0 whitespace-nowrap text-xs text-slate-400">
+                  {dok.pageCount ? `${dok.pageCount} S. · ` : ''}
+                  {formatBytes(dok.size)}
+                </span>
+                {istPdf && darfBearbeiten && (dok.pageCount ?? 0) > 1 && !teilVon && (
+                  <button
+                    type="button"
+                    onClick={() => setGesplittet({ id: dok.id, name: dok.filename })}
+                    className="shrink-0 rounded p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                    aria-label={`${dok.filename} auftrennen`}
+                    title="In Anschreiben, Lebenslauf und Zeugnisse auftrennen"
+                  >
+                    <Scissors className="h-4 w-4" />
+                  </button>
+                )}
+                <a
+                  href={`/api/dokumente/${dok.id}/datei`}
+                  download
+                  className="shrink-0 rounded p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                  aria-label={`${dok.filename} herunterladen`}
+                >
+                  <Download className="h-4 w-4" />
+                </a>
+              </li>
+            )
+          })}
         </ul>
       )}
+
+      <Dialog
+        offen={Boolean(betrachtet)}
+        onSchliessen={() => setBetrachtet(null)}
+        titel={betrachtet?.name ?? ''}
+        beschreibung="Textstelle markieren, um sie zu kommentieren. Die PDF selbst bleibt unverändert."
+        breite="voll"
+      >
+        {betrachtet && <PdfBetrachter dokumentId={betrachtet.id} dateiname={betrachtet.name} />}
+      </Dialog>
+
+      <Dialog
+        offen={Boolean(gesplittet)}
+        onSchliessen={() => setGesplittet(null)}
+        titel={`Auftrennen: ${gesplittet?.name ?? ''}`}
+        beschreibung="Seiten den Kategorien zuordnen. Zusammenhängende Seiten bleiben in einer Datei."
+        breite="voll"
+      >
+        {gesplittet && (
+          <SplitAnsicht
+            dokumentId={gesplittet.id}
+            onFertig={() => {
+              setGesplittet(null)
+              void onGeaendert()
+            }}
+          />
+        )}
+      </Dialog>
     </Karte>
   )
 }

@@ -7,6 +7,7 @@ import { wrap } from '../lib/errors'
 import { mailRouter } from '../mail/routes'
 import { bewerberRouter } from './bewerber'
 import { bewerbungenRouter } from './bewerbungen'
+import { bewertungenRouter, kommentareRouter, notizenRouter } from './bewertungen'
 import { dokumenteRouter } from './dokumente'
 import { stellenRouter } from './stellen'
 import { usersRouter } from './users'
@@ -18,6 +19,9 @@ apiRouter.use('/stellen', stellenRouter)
 apiRouter.use('/bewerbungen', bewerbungenRouter)
 apiRouter.use('/bewerber', bewerberRouter)
 apiRouter.use('/dokumente', dokumenteRouter)
+apiRouter.use('/bewertungen', bewertungenRouter)
+apiRouter.use('/notizen', notizenRouter)
+apiRouter.use('/kommentare', kommentareRouter)
 apiRouter.use('/mail', mailRouter)
 
 /** Zahlen für die Startseite. */

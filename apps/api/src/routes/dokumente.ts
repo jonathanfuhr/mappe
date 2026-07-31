@@ -9,6 +9,8 @@ import { audit } from '../lib/audit'
 import { badRequest, notFound, wrap } from '../lib/errors'
 import { deleteFile, downloadName, readFileFrom, writeFileTo } from '../lib/storage'
 import { body } from '../lib/validate'
+import { schlageKategorienVor } from '../pdf/heuristik'
+import { nimmSplitZurueck, trenneAuf } from '../pdf/split'
 import { extrahiereText, istPdf } from '../pdf/text'
 
 export const dokumenteRouter = Router()
@@ -118,6 +120,101 @@ dokumenteRouter.get(
     // Dokumente sind personenbezogen – nichts davon gehört in einen Cache.
     res.setHeader('Cache-Control', 'private, no-store')
     res.send(inhalt)
+  }),
+)
+
+/**
+ * Seitenweiser Text plus Vorvorschlag für die Split-Ansicht.
+ *
+ * Die Vorschaubilder rendert der Browser selbst aus der PDF – so muss der
+ * Server keine Bildbibliothek mitschleppen und keine Seitenbilder ablegen.
+ */
+dokumenteRouter.get(
+  '/:id/seiten',
+  requireAuth,
+  wrap(async (req, res) => {
+    const me = currentUser(req)
+    const dokument = await prisma.document.findUnique({
+      where: { id: req.params.id },
+      include: { children: { select: { id: true, category: true, sourcePages: true, filename: true } } },
+    })
+    if (!dokument) throw notFound('Dieses Dokument gibt es nicht.')
+    await assertCanViewApplication(me, dokument.applicationId)
+
+    if (dokument.mimeType !== 'application/pdf') {
+      throw badRequest('Nur PDF-Dateien lassen sich auftrennen.')
+    }
+
+    const inhalt = await readFileFrom(dokument.storagePath)
+    const text = await extrahiereText(inhalt)
+    const vorschlaege = schlageKategorienVor(text.seiten)
+
+    // Wurde schon einmal aufgetrennt, zeigt die Ansicht die bestehende
+    // Aufteilung statt eines neuen Vorschlags – sonst wäre jede Korrektur
+    // nach dem Neuladen wieder weg.
+    const bestehend = new Map<number, string>()
+    for (const kind of dokument.children) {
+      for (const seite of kind.sourcePages) bestehend.set(seite, kind.category)
+    }
+
+    res.json({
+      dokument: { id: dokument.id, filename: dokument.filename, seitenAnzahl: text.seitenAnzahl },
+      bereitsAufgetrennt: dokument.children.length > 0,
+      teile: dokument.children,
+      seiten: vorschlaege.map((v) => ({
+        ...v,
+        kategorie: bestehend.get(v.seite) ?? v.kategorie,
+        textAuszug: text.seiten.find((s) => s.seite === v.seite)?.text.slice(0, 300) ?? '',
+      })),
+    })
+  }),
+)
+
+const splitSchema = z.object({
+  zuordnung: z
+    .array(
+      z.object({
+        seite: z.number().int().min(1),
+        kategorie: z.enum(['ANSCHREIBEN', 'LEBENSLAUF', 'ZEUGNISSE', 'ANDERE']),
+      }),
+    )
+    .min(1, 'Es wurde keine Seite zugeordnet.')
+    .max(500),
+})
+
+dokumenteRouter.post(
+  '/:id/auftrennen',
+  requireAuth,
+  body(splitSchema),
+  wrap(async (req, res) => {
+    const me = currentUser(req)
+    const dokument = await prisma.document.findUnique({ where: { id: req.params.id } })
+    if (!dokument) throw notFound('Dieses Dokument gibt es nicht.')
+    await assertCanEditApplication(me, dokument.applicationId)
+
+    const { zuordnung } = req.body as z.infer<typeof splitSchema>
+    const ergebnis = await trenneAuf(req.params.id, zuordnung)
+
+    await audit(me.id, 'pdf-aufgetrennt', 'document', req.params.id, {
+      teile: ergebnis.erzeugt.length,
+      ersetzt: ergebnis.ersetzt,
+    })
+    res.json(ergebnis)
+  }),
+)
+
+dokumenteRouter.post(
+  '/:id/split-zuruecknehmen',
+  requireAuth,
+  wrap(async (req, res) => {
+    const me = currentUser(req)
+    const dokument = await prisma.document.findUnique({ where: { id: req.params.id } })
+    if (!dokument) throw notFound('Dieses Dokument gibt es nicht.')
+    await assertCanEditApplication(me, dokument.applicationId)
+
+    const anzahl = await nimmSplitZurueck(req.params.id)
+    await audit(me.id, 'pdf-split-zurueckgenommen', 'document', req.params.id, { entfernt: anzahl })
+    res.json({ entfernt: anzahl })
   }),
 )
 

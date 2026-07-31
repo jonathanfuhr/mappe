@@ -1,42 +1,8 @@
 import crypto from 'node:crypto'
-import fs from 'node:fs'
 import path from 'node:path'
+import { ladeDotEnv } from './lib/dotenv'
 
-/**
- * Lädt eine .env, falls vorhanden. Im Container kommt die Konfiguration über
- * echte Umgebungsvariablen, lokal aus der Datei – bereits gesetzte Werte haben
- * immer Vorrang. Node bringt loadEnvFile ab 20.6 selbst mit, deshalb braucht
- * es dafür kein Paket.
- */
-function loadDotEnv(): void {
-  const candidates = [
-    process.env.ENV_FILE,
-    path.join(process.cwd(), '.env'),
-    path.resolve(__dirname, '../.env'),
-    path.resolve(__dirname, '../../../.env'),
-  ].filter((p): p is string => Boolean(p))
-
-  for (const file of candidates) {
-    if (!fs.existsSync(file)) continue
-    for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
-      const match = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/.exec(line)
-      if (!match) continue
-      const key = match[1]
-      if (process.env[key] !== undefined) continue
-      let value = match[2].trim()
-      if (
-        (value.startsWith('"') && value.endsWith('"')) ||
-        (value.startsWith("'") && value.endsWith("'"))
-      ) {
-        value = value.slice(1, -1)
-      }
-      process.env[key] = value
-    }
-    break
-  }
-}
-
-loadDotEnv()
+ladeDotEnv()
 
 function required(name: string, fallback?: string): string {
   const value = process.env[name] ?? fallback

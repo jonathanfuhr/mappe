@@ -4,8 +4,10 @@ import { Hinweis, LadeZustand } from './components/ui'
 import { t } from './i18n'
 import { useAuth, type Rolle } from './lib/auth'
 import { AnmeldenPage } from './pages/AnmeldenPage'
+import { BewerberDetailPage, BewerberListePage } from './pages/BewerberPage'
 import { BewerbungPage } from './pages/BewerbungPage'
 import { BewerbungenPage } from './pages/BewerbungenPage'
+import { BoardPage } from './pages/BoardPage'
 import { EinstellungenPage } from './pages/EinstellungenPage'
 import { NutzerPage } from './pages/NutzerPage'
 import { PosteingangPage } from './pages/PosteingangPage'
@@ -50,8 +52,18 @@ export function App() {
     <Routes>
       <Route element={<Layout />}>
         <Route path="/" element={<UebersichtPage />} />
+        <Route path="/board" element={<BoardPage />} />
         <Route path="/bewerbungen" element={<BewerbungenPage />} />
         <Route path="/bewerbungen/:id" element={<BewerbungPage />} />
+        <Route
+          path="/bewerber"
+          element={
+            <NurFuer rollen={NUR_TEAM}>
+              <BewerberListePage />
+            </NurFuer>
+          }
+        />
+        <Route path="/bewerber/:id" element={<BewerberDetailPage />} />
         <Route
           path="/stellen"
           element={

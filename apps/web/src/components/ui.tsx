@@ -300,7 +300,7 @@ export function Dialog({
   onSchliessen: () => void
   titel: string
   beschreibung?: string
-  breite?: 'sm' | 'md' | 'lg' | 'xl'
+  breite?: 'sm' | 'md' | 'lg' | 'xl' | 'voll'
   fusszeile?: ReactNode
   children: ReactNode
 }) {
@@ -321,7 +321,14 @@ export function Dialog({
 
   if (!offen) return null
 
-  const breiten = { sm: 'max-w-md', md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-4xl' }
+  const breiten = {
+    sm: 'max-w-md',
+    md: 'max-w-lg',
+    lg: 'max-w-2xl',
+    xl: 'max-w-4xl',
+    // Für PDF-Betrachter und Split-Ansicht: so breit wie das Fenster hergibt.
+    voll: 'max-w-[min(1500px,95vw)]',
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 sm:p-8">
@@ -353,7 +360,14 @@ export function Dialog({
             <X className="h-4 w-4" />
           </button>
         </header>
-        <div className="max-h-[70vh] overflow-y-auto px-5 py-4 duenner-scroll">{children}</div>
+        <div
+          className={clsx(
+            'overflow-y-auto px-5 py-4 duenner-scroll',
+            breite === 'voll' ? 'max-h-[85vh]' : 'max-h-[70vh]',
+          )}
+        >
+          {children}
+        </div>
         {fusszeile && (
           <footer className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-3.5">
             {fusszeile}

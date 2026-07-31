@@ -2,10 +2,11 @@ import type { Prisma } from '@prisma/client'
 import { Router } from 'express'
 import { z } from 'zod'
 import { applicationScope, assertCanViewCandidate, canSeeAllCandidates } from '../auth/access'
-import { currentUser, requireAuth, requireRecruiter } from '../auth/middleware'
+import { currentUser, requireAdmin, requireAuth, requireRecruiter } from '../auth/middleware'
 import { prisma } from '../db'
 import { audit } from '../lib/audit'
 import { notFound, wrap } from '../lib/errors'
+import { deleteFile } from '../lib/storage'
 import { body, getQuery, paginationSchema, query, skipTake } from '../lib/validate'
 
 export const bewerberRouter = Router()
@@ -142,6 +143,64 @@ bewerberRouter.patch(
       await audit(me.id, 'einwilligung-geaendert', 'candidate', bewerber.id, { wert: d.einwilligung })
     }
     res.json(bewerber)
+  }),
+)
+
+/**
+ * Vollständige Löschung einer Person – der Weg, den die DSGVO für ein
+ * Auskunfts- und Löschersuchen verlangt.
+ *
+ * Die Datenbank räumt über Cascade alles Abhängige weg; die Dateien auf der
+ * Platte müssen wir selbst entfernen. Deshalb erst die Pfade sammeln, dann
+ * löschen, dann die Dateien – bricht es dazwischen ab, bleiben höchstens
+ * verwaiste Dateien zurück, nie ein Datensatz ohne Datei.
+ */
+bewerberRouter.delete(
+  '/:id',
+  requireAdmin,
+  wrap(async (req, res) => {
+    const me = currentUser(req)
+
+    const bewerber = await prisma.candidate.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, firstName: true, lastName: true, email: true },
+    })
+    if (!bewerber) throw notFound('Diesen Bewerber gibt es nicht.')
+
+    const [dokumente, anhaenge, mails] = await Promise.all([
+      prisma.document.findMany({
+        where: { application: { candidateId: req.params.id } },
+        select: { storagePath: true },
+      }),
+      prisma.mailAttachment.findMany({
+        where: { mailMessage: { application: { candidateId: req.params.id } } },
+        select: { storagePath: true },
+      }),
+      prisma.mailMessage.findMany({
+        where: {
+          OR: [{ candidateId: req.params.id }, { application: { candidateId: req.params.id } }],
+          emlPath: { not: null },
+        },
+        select: { emlPath: true },
+      }),
+    ])
+
+    await prisma.candidate.delete({ where: { id: req.params.id } })
+
+    const pfade = [
+      ...dokumente.map((d) => d.storagePath),
+      ...anhaenge.map((a) => a.storagePath),
+      ...mails.map((m) => m.emlPath!).filter(Boolean),
+    ]
+    for (const pfad of new Set(pfade)) await deleteFile(pfad)
+
+    await audit(me.id, 'bewerber-geloescht', 'candidate', req.params.id, {
+      name: `${bewerber.firstName} ${bewerber.lastName}`.trim(),
+      email: bewerber.email,
+      dateien: pfade.length,
+    })
+
+    res.json({ ok: true, dateienEntfernt: pfade.length })
   }),
 )
 
