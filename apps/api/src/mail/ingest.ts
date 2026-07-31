@@ -1,4 +1,5 @@
 import type { ApplicationSource, Prisma } from '@prisma/client'
+import { analysiereBewerbung } from '../ai/analyse'
 import { prisma } from '../db'
 import { erkennePortal } from '../extract/portale'
 import { parseFormularMail } from '../extract/formular'
@@ -8,6 +9,7 @@ import { audit } from '../lib/audit'
 import { writeFileTo } from '../lib/storage'
 import { extrahiereText, istPdf } from '../pdf/text'
 import type { Settings } from '../settings/schema'
+import { getSetting } from '../settings/service'
 import { bildeVerlaufsKennung, parseMime, type GeparsteMail } from './parse'
 import type { MailAdapter, RohMail } from './types'
 
@@ -176,7 +178,34 @@ async function importiereEine(
     weitergeleitet: mail.weiterleitung.erkannt,
   })
 
+  // Die KI läuft danach und blockiert den Abruf nicht. Bei einem lokalen
+  // Modell dauert eine Bewerbung ein bis zwei Minuten – so lange darf das
+  // Einlesen des Postfachs nicht stillstehen.
+  planeKiAnalyse(bewerbung.id)
+
   return 'neu'
+}
+
+/**
+ * Stößt die KI-Analyse im Hintergrund an, falls sie eingeschaltet ist.
+ * Fehler landen im Protokoll und bleiben folgenlos – die Bewerbung ist auch
+ * ohne KI vollständig erfasst.
+ */
+function planeKiAnalyse(applicationId: string): void {
+  setImmediate(() => {
+    void (async () => {
+      try {
+        const ki = await getSetting('ki')
+        if (!ki.aktiv) return
+        await analysiereBewerbung(applicationId, null)
+      } catch (err) {
+        console.error(
+          `[mappe] KI-Analyse für ${applicationId} fehlgeschlagen:`,
+          err instanceof Error ? err.message : err,
+        )
+      }
+    })()
+  })
 }
 
 /** Wählt den passenden Parser und liefert Daten samt erkannter Quelle. */

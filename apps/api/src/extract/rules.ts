@@ -97,9 +97,16 @@ export function normalisiereTelefon(roh: string): string {
 /** „04103 Leipzig" oder „D-04103 Leipzig" – fünfstellige PLZ plus Ortsname. */
 const PLZ_ORT_MUSTER = /\b(?:D[-\s]?)?(\d{5})\s+([A-ZÄÖÜ][A-Za-zÄÖÜäöüß.\-/ ]{1,40}?)(?=\s*(?:$|[,;\n·|]))/gm
 
-/** „Musterstraße 12a" – Straßenname mit Hausnummer. */
+/**
+ * „Musterstraße 12a" – Straßenname mit Hausnummer.
+ *
+ * Der Anfang ist bewusst an einen Zeilenanfang oder ein Trennzeichen
+ * gebunden. Ohne diese Fesselung zieht das Muster im Fließtext eines
+ * Lebenslaufs die davorstehenden Wörter mit hinein und macht aus
+ * „Lebenslauf Sarah Wendler Bahnhofstraße 18" eine Anschrift.
+ */
 const STRASSE_MUSTER =
-  /\b([A-ZÄÖÜ][A-Za-zÄÖÜäöüß.\-]{2,}(?:[\s-][A-ZÄÖÜa-zäöüß.\-]+){0,3}(?:stra(?:ß|ss)e|str\.?|weg|allee|platz|gasse|ring|damm|ufer|chaussee|pfad|steig))\s+(\d{1,4}\s?[a-zA-Z]?)\b/g
+  /(?:^|[\n,;·|]\s*)([A-ZÄÖÜ][A-Za-zÄÖÜäöüß.\-]{2,}(?:[ -][A-ZÄÖÜa-zäöüß.\-]+){0,2}(?:stra(?:ß|ss)e|str\.?|weg|allee|platz|gasse|ring|damm|ufer|chaussee|pfad|steig))[ ]+(\d{1,4}\s?[a-zA-Z]?)(?=$|[\s,;.])/gm
 
 export function findeAdresse(text: string): { strasse?: string; plz?: string; ort?: string } {
   const ergebnis: { strasse?: string; plz?: string; ort?: string } = {}

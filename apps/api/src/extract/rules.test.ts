@@ -62,6 +62,28 @@ describe('Adresserkennung', () => {
   it('liefert nichts, wenn keine Adresse dasteht', () => {
     expect(findeAdresse('Ich freue mich auf Ihre Rückmeldung.')).toEqual({})
   })
+
+  it('zieht keine vorangehenden Wörter in den Straßennamen', () => {
+    // Aus einem Lebenslauf ohne saubere Zeilentrennung: Ohne Fesselung an den
+    // Zeilenanfang würde „Lebenslauf Sarah Wendler Bahnhofstraße 18" als
+    // Anschrift durchgehen.
+    const text = 'Lebenslauf\nSarah Wendler\nBahnhofstraße 18\n04103 Leipzig'
+    expect(findeAdresse(text).strasse).toBe('Bahnhofstraße 18')
+  })
+
+  it('erkennt die Straße auch in einer einzeiligen Anschrift', () => {
+    expect(findeAdresse('Bahnhofstraße 18, 04103 Leipzig').strasse).toBe('Bahnhofstraße 18')
+  })
+
+  it('erkennt mehrteilige Straßennamen', () => {
+    expect(findeAdresse('Alte Poststraße 4b\n01067 Dresden').strasse).toBe('Alte Poststraße 4b')
+  })
+
+  it('hält Fließtext ohne Anschrift heraus', () => {
+    expect(
+      findeAdresse('Ich habe zuletzt in der Agentur an der Hauptstraße gearbeitet.').strasse,
+    ).toBeUndefined()
+  })
 })
 
 describe('Namenszerlegung', () => {

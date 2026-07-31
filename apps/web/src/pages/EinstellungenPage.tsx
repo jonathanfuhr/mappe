@@ -17,6 +17,36 @@ interface GesetztKennzeichen {
 const BEREICHE: { schluessel: Bereich; label: string }[] = [
   { schluessel: 'allgemein', label: t('einstellungen.allgemein') },
   { schluessel: 'mail', label: t('einstellungen.mail') },
+  { schluessel: 'ki', label: t('einstellungen.ki') },
+]
+
+/** Vorlagen für die gängigen Anbieter – erspart das Nachschlagen der URLs. */
+const KI_VORLAGEN = [
+  {
+    name: 'OpenAI',
+    basisUrl: 'https://api.openai.com/v1',
+    modell: 'gpt-4o-mini',
+    hinweis: 'Günstig, Kosten pro Bewerbung im Cent-Bereich.',
+  },
+  {
+    name: 'Anthropic (Claude)',
+    basisUrl: 'https://api.anthropic.com/v1',
+    modell: 'claude-haiku-4-5-20251001',
+    hinweis: 'OpenAI-kompatible Schnittstelle von Anthropic.',
+  },
+  {
+    name: 'Azure OpenAI',
+    basisUrl: 'https://IHRE-RESSOURCE.openai.azure.com/openai/deployments/IHR-DEPLOYMENT',
+    modell: 'gpt-4o-mini',
+    hinweis: 'Ressourcenname und Deployment in der URL ersetzen.',
+  },
+  {
+    name: 'Ollama (lokal)',
+    basisUrl: 'http://host.docker.internal:11434/v1',
+    modell: 'qwen2.5:3b',
+    hinweis:
+      'Läuft ohne API-Schlüssel auf eigener Hardware. Auf einem Mac mini M1 mit 8 GB laufen 3B-Modelle entspannt; rechnen Sie mit ein bis zwei Minuten je Bewerbung und setzen Sie das Zeitlimit entsprechend hoch.',
+  },
 ]
 
 export function EinstellungenPage() {
@@ -46,6 +76,7 @@ export function EinstellungenPage() {
 
       {bereich === 'allgemein' && <AllgemeinBereich />}
       {bereich === 'mail' && <MailBereich />}
+      {bereich === 'ki' && <KiBereich />}
     </Seite>
   )
 }
@@ -301,6 +332,186 @@ function MailBereich() {
               value={wert.abrufIntervallSekunden ?? 120}
               onChange={(e) => setze('abrufIntervallSekunden', Number(e.target.value))}
               className="max-w-[12rem]"
+            />
+          </div>
+          <SpeichernLeiste geaendert={geaendert} laedt={speichern.isPending} onSpeichern={() => speichern.mutate()} />
+        </Karte>
+      )}
+    </div>
+  )
+}
+
+// --- KI ---------------------------------------------------------------------
+
+interface KiEinstellungen {
+  aktiv: boolean
+  basisUrl: string
+  apiKey: string
+  modell: string
+  timeoutSekunden: number
+  maxZeichen: number
+  aufgaben: { erkennung: boolean; extraktion: boolean; zusammenfassung: boolean; pdfSplit: boolean }
+}
+
+function KiBereich() {
+  const toast = useToast()
+  const { abfrage, wert, setze, geaendert, speichern } = useBereich<KiEinstellungen>('ki')
+  const [pruefErgebnis, setPruefErgebnis] = useState<{ ok: boolean; meldung: string; modus?: string } | null>(
+    null,
+  )
+
+  const pruefen = useMutation({
+    mutationFn: () => api.post<{ ok: boolean; meldung: string; modus?: string }>('/ki/pruefen'),
+    onSuccess: (ergebnis) => setPruefErgebnis(ergebnis),
+    onError: (err: unknown) => toast.fehler(err instanceof ApiError ? err.message : t('app.fehler')),
+  })
+
+  if (abfrage.isLoading) return <LadeZustand />
+
+  const aufgaben = wert.aufgaben ?? {
+    erkennung: true,
+    extraktion: true,
+    zusammenfassung: true,
+    pdfSplit: true,
+  }
+  const schluesselGesetzt = wert._gesetzt?.apiKey
+
+  return (
+    <div className="space-y-6">
+      <Karte titel={t('einstellungen.ki')} beschreibung={t('ki.beschreibung')}>
+        <div className="max-w-2xl space-y-4">
+          <Hinweis ton="warnung" titel={t('ki.transparenzTitel')}>
+            {t('ki.transparenz')}
+          </Hinweis>
+
+          <Checkbox
+            label={t('ki.aktiv')}
+            hilfe={t('ki.aktivHilfe')}
+            checked={wert.aktiv ?? false}
+            onChange={(e) => setze('aktiv', e.target.checked)}
+          />
+
+          {wert.aktiv && (
+            <>
+              <div>
+                <span className="feld-label">{t('ki.vorlagen')}</span>
+                <div className="flex flex-wrap gap-2">
+                  {KI_VORLAGEN.map((v) => (
+                    <button
+                      key={v.name}
+                      type="button"
+                      title={v.hinweis}
+                      onClick={() => {
+                        setze('basisUrl', v.basisUrl)
+                        setze('modell', v.modell)
+                      }}
+                      className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 transition-colors hover:border-brand-300 hover:bg-brand-50"
+                    >
+                      {v.name}
+                    </button>
+                  ))}
+                </div>
+                <p className="feld-hilfe">{t('ki.vorlagenHilfe')}</p>
+              </div>
+
+              <Input
+                label={t('ki.basisUrl')}
+                hilfe={t('ki.basisUrlHilfe')}
+                value={wert.basisUrl ?? ''}
+                onChange={(e) => setze('basisUrl', e.target.value)}
+              />
+              <Input
+                label={t('ki.modell')}
+                value={wert.modell ?? ''}
+                onChange={(e) => setze('modell', e.target.value)}
+              />
+              <Input
+                label={t('ki.apiKey')}
+                type="password"
+                value={wert.apiKey ?? ''}
+                onChange={(e) => setze('apiKey', e.target.value)}
+                placeholder={schluesselGesetzt ? '••••••••' : ''}
+                hilfe={schluesselGesetzt ? t('einstellungen.geheimnisGesetzt') : t('ki.apiKeyHilfe')}
+              />
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Input
+                  type="number"
+                  min={10}
+                  max={1800}
+                  label={t('ki.timeout')}
+                  hilfe={t('ki.timeoutHilfe')}
+                  value={wert.timeoutSekunden ?? 120}
+                  onChange={(e) => setze('timeoutSekunden', Number(e.target.value))}
+                />
+                <Input
+                  type="number"
+                  min={1000}
+                  max={200000}
+                  step={1000}
+                  label={t('ki.maxZeichen')}
+                  hilfe={t('ki.maxZeichenHilfe')}
+                  value={wert.maxZeichen ?? 24000}
+                  onChange={(e) => setze('maxZeichen', Number(e.target.value))}
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <Button variante="umriss" onClick={() => pruefen.mutate()} laedt={pruefen.isPending}>
+                  {t('ki.pruefen')}
+                </Button>
+                {pruefErgebnis && (
+                  <span
+                    className={clsx(
+                      'inline-flex items-center gap-1.5 text-sm',
+                      pruefErgebnis.ok ? 'text-emerald-700' : 'text-red-700',
+                    )}
+                  >
+                    {pruefErgebnis.ok ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+                    {pruefErgebnis.meldung}
+                  </span>
+                )}
+              </div>
+              {pruefErgebnis?.modus && (
+                <p className="text-xs text-slate-500">{pruefErgebnis.modus}</p>
+              )}
+              {geaendert && (
+                <p className="text-xs text-slate-500">
+                  Die Prüfung nutzt die gespeicherten Werte – bitte zuerst speichern.
+                </p>
+              )}
+            </>
+          )}
+        </div>
+        <SpeichernLeiste geaendert={geaendert} laedt={speichern.isPending} onSpeichern={() => speichern.mutate()} />
+      </Karte>
+
+      {wert.aktiv && (
+        <Karte titel={t('ki.aufgaben')} beschreibung={t('ki.aufgabenHilfe')}>
+          <div className="max-w-2xl space-y-3">
+            <Checkbox
+              label={t('ki.aufgabeErkennung')}
+              hilfe={t('ki.aufgabeErkennungHilfe')}
+              checked={aufgaben.erkennung}
+              onChange={(e) => setze('aufgaben', { ...aufgaben, erkennung: e.target.checked })}
+            />
+            <Checkbox
+              label={t('ki.aufgabeExtraktion')}
+              hilfe={t('ki.aufgabeExtraktionHilfe')}
+              checked={aufgaben.extraktion}
+              onChange={(e) => setze('aufgaben', { ...aufgaben, extraktion: e.target.checked })}
+            />
+            <Checkbox
+              label={t('ki.aufgabeZusammenfassung')}
+              hilfe={t('ki.aufgabeZusammenfassungHilfe')}
+              checked={aufgaben.zusammenfassung}
+              onChange={(e) => setze('aufgaben', { ...aufgaben, zusammenfassung: e.target.checked })}
+            />
+            <Checkbox
+              label={t('ki.aufgabePdfSplit')}
+              hilfe={t('ki.aufgabePdfSplitHilfe')}
+              checked={aufgaben.pdfSplit}
+              onChange={(e) => setze('aufgaben', { ...aufgaben, pdfSplit: e.target.checked })}
             />
           </div>
           <SpeichernLeiste geaendert={geaendert} laedt={speichern.isPending} onSpeichern={() => speichern.mutate()} />

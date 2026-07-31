@@ -11,6 +11,7 @@ import {
   Phone,
   Scissors,
   Send,
+  Sparkles,
   Trash2,
   Upload,
 } from 'lucide-react'
@@ -22,6 +23,7 @@ import { MailSendenDialog } from '../components/MailSendenDialog'
 import { Seite } from '../components/Layout'
 import { PdfBetrachter } from '../components/PdfBetrachter'
 import { SplitAnsicht } from '../components/SplitAnsicht'
+import { VorschlagsKarte } from '../components/VorschlagsKarte'
 import { useToast } from '../components/Toast'
 import {
   Badge,
@@ -95,6 +97,15 @@ export function BewerbungPage() {
     onError: (err: unknown) => toast.fehler(err instanceof ApiError ? err.message : t('app.fehler')),
   })
 
+  const analysieren = useMutation({
+    mutationFn: () => api.post<{ modell: string; aufgaben: string[] }>(`/ki/analysieren/${id}`),
+    onSuccess: async (bericht) => {
+      await aktualisiere()
+      toast.erfolg(`${t('ki.analysiert')} (${bericht.aufgaben.join(', ')} · ${bericht.modell})`)
+    },
+    onError: (err: unknown) => toast.fehler(err instanceof ApiError ? err.message : t('app.fehler')),
+  })
+
   const loeschen = useMutation({
     mutationFn: () => api.delete(`/bewerbungen/${id}`),
     onSuccess: async () => {
@@ -142,6 +153,16 @@ export function BewerbungPage() {
 
         {darfBearbeiten && (
           <div className="flex flex-wrap items-center gap-2">
+            {einstellungen?.kiAktiv && (
+              <Button
+                variante="umriss"
+                onClick={() => analysieren.mutate()}
+                laedt={analysieren.isPending}
+              >
+                <Sparkles className="h-4 w-4" />
+                {t('ki.analyse')}
+              </Button>
+            )}
             <Button variante="umriss" onClick={() => setMailOffen(true)}>
               <Send className="h-4 w-4" />
               {t('senden.titel')}
@@ -166,10 +187,12 @@ export function BewerbungPage() {
       </header>
 
       {bewerbung.needsReview && darfBearbeiten && (
-        <VorschlagsHinweis
+        <VorschlagsKarte
           bewerbung={bewerbung}
+          stellen={stellen ?? []}
           onBestaetigen={() => bestaetigen.mutate()}
-          laedt={bestaetigen.isPending}
+          onGeaendert={aktualisiere}
+          laedtBestaetigen={bestaetigen.isPending}
         />
       )}
 
@@ -297,60 +320,6 @@ export function BewerbungPage() {
         text={t('bewerbungen.loeschenFrage')}
       />
     </Seite>
-  )
-}
-
-/** Zeigt, was automatisch erkannt wurde – und lässt es mit einem Klick bestätigen. */
-function VorschlagsHinweis({
-  bewerbung,
-  onBestaetigen,
-  laedt,
-}: {
-  bewerbung: Bewerbung
-  onBestaetigen: () => void
-  laedt: boolean
-}) {
-  const vorschlag = bewerbung.suggestions[0]
-  const weiterleitung = vorschlag?.payload.weiterleitung
-  const zuordnung = vorschlag?.payload.stelle
-
-  return (
-    <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-5">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h2 className="text-sm font-semibold text-amber-900">{t('bewerbungen.erkannteAngaben')}</h2>
-          <p className="mt-0.5 text-sm text-amber-800">
-            {vorschlag?.source === 'KI'
-              ? t('bewerbungen.erkanntDurchKi')
-              : t('bewerbungen.erkanntDurchRegeln')}
-            {vorschlag?.model ? ` · ${vorschlag.model}` : ''}
-          </p>
-        </div>
-        <Button onClick={onBestaetigen} laedt={laedt}>
-          <CheckCircle2 className="h-4 w-4" />
-          {t('bewerbungen.geprueft')}
-        </Button>
-      </div>
-
-      <div className="mt-4 space-y-2 text-sm text-amber-900">
-        {weiterleitung?.erkannt && weiterleitung.urspruenglicherAbsender && (
-          <div className="flex items-start gap-2">
-            <Forward className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>
-              {t('bewerbungen.weitergeleitet', { adresse: weiterleitung.vonZeile?.email ?? '–' })} —{' '}
-              {t('bewerbungen.urspruenglicherAbsender')}:{' '}
-              <strong>{weiterleitung.urspruenglicherAbsender.email}</strong>
-            </span>
-          </div>
-        )}
-        {zuordnung && (
-          <div>
-            {t('bewerbungen.zuordnung')}: {zuordnung.begruendung} ({t('bewerbungen.sicherheit')}{' '}
-            {Math.round(zuordnung.sicherheit * 100)} %)
-          </div>
-        )}
-      </div>
-    </div>
   )
 }
 

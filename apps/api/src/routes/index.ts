@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { kiRouter } from '../ai/routes'
 import { requireAuth } from '../auth/middleware'
 import { applicationScope } from '../auth/access'
 import { currentUser } from '../auth/middleware'
@@ -25,6 +26,7 @@ apiRouter.use('/notizen', notizenRouter)
 apiRouter.use('/kommentare', kommentareRouter)
 apiRouter.use('/vorlagen', vorlagenRouter)
 apiRouter.use('/freifelder', freifelderRouter)
+apiRouter.use('/ki', kiRouter)
 apiRouter.use('/mail', mailRouter)
 
 /** Zahlen für die Startseite. */

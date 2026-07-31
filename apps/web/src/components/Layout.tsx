@@ -10,13 +10,16 @@ import {
   Menu,
   Settings,
   ShieldCheck,
+  Sparkles,
   Users,
   UserSquare2,
   X,
 } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
 import { useState, type ReactNode } from 'react'
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { t } from '../i18n'
+import { api } from '../lib/api'
 import { useAuth, type Rolle } from '../lib/auth'
 
 interface NavEintrag {
@@ -112,6 +115,12 @@ export function Layout() {
   const navigate = useNavigate()
   const [mobilOffen, setMobilOffen] = useState(false)
 
+  const { data: kiStatus } = useQuery({
+    queryKey: ['einstellungen-oeffentlich'],
+    queryFn: () => api.get<{ kiAktiv: boolean; kiModell: string | null }>('/einstellungen/oeffentlich'),
+    staleTime: 5 * 60_000,
+  })
+
   if (!nutzer) return null
 
   const seitenleiste = (onKlick?: () => void) => (
@@ -134,6 +143,21 @@ export function Layout() {
           </div>
         )}
       </nav>
+
+      {/* Dauerhaft sichtbar, solange die KI läuft – wer damit arbeitet, soll
+          nicht erst in den Einstellungen nachsehen müssen, ob Auszüge aus
+          Bewerbungen an einen Anbieter gehen. */}
+      {kiStatus?.kiAktiv && (
+        <Link
+          to="/einstellungen"
+          className="mx-3 mb-2 flex items-center gap-2 rounded-lg bg-violet-50 px-2.5 py-2 text-xs text-violet-800 transition-colors hover:bg-violet-100"
+        >
+          <Sparkles className="h-3.5 w-3.5 shrink-0" />
+          <span className="min-w-0 truncate">
+            {t('ki.aktivHinweis', { modell: kiStatus.kiModell ?? '' })}
+          </span>
+        </Link>
+      )}
 
       <div className="border-t border-slate-200 p-3">
         <NavLink

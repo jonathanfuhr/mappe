@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import clsx from 'clsx'
-import { Scissors, Undo2 } from 'lucide-react'
+import { Scissors, Sparkles, Undo2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { t } from '../i18n'
 import { api, ApiError } from '../lib/api'
@@ -53,6 +53,27 @@ export function SplitAnsicht({
   const { data, isLoading } = useQuery({
     queryKey: ['seiten', dokumentId],
     queryFn: () => api.get<SeitenAntwort>(`/dokumente/${dokumentId}/seiten`),
+  })
+
+  const { data: einstellungen } = useQuery({
+    queryKey: ['einstellungen-oeffentlich'],
+    queryFn: () => api.get<{ kiAktiv: boolean; kiModell: string | null }>('/einstellungen/oeffentlich'),
+  })
+
+  /**
+   * Die KI füllt dieselbe Ansicht vor wie die Heuristik. Der Prüfschritt
+   * bleibt derselbe – nur der Ausgangsvorschlag ist besser.
+   */
+  const kiVorschlag = useMutation({
+    mutationFn: () =>
+      api.post<{ zuordnung: { seite: number; kategorie: Kategorie }[]; modell: string }>(
+        `/ki/seiten/${dokumentId}`,
+      ),
+    onSuccess: (ergebnis) => {
+      setZuordnung(new Map(ergebnis.zuordnung.map((z) => [z.seite, z.kategorie])))
+      toast.erfolg(`Vorschlag von ${ergebnis.modell} übernommen. Bitte prüfen und bei Bedarf korrigieren.`)
+    },
+    onError: (err: unknown) => toast.fehler(err instanceof ApiError ? err.message : t('app.fehler')),
   })
 
   // Vorschlag der Heuristik einmalig übernehmen; danach gewinnt immer, was
@@ -135,10 +156,23 @@ export function SplitAnsicht({
         ))}
       </div>
 
-      <p className="mb-4 text-xs text-slate-500">
-        Umschalt-Klick weist alle Seiten zwischen der zuletzt geklickten und dieser zu.
-        Zusammenhängende Seiten derselben Kategorie bleiben beim Auftrennen in einer Datei.
-      </p>
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <p className="text-xs text-slate-500">
+          Umschalt-Klick weist alle Seiten zwischen der zuletzt geklickten und dieser zu.
+          Zusammenhängende Seiten derselben Kategorie bleiben beim Auftrennen in einer Datei.
+        </p>
+        {einstellungen?.kiAktiv && (
+          <Button
+            variante="umriss"
+            groesse="sm"
+            onClick={() => kiVorschlag.mutate()}
+            laedt={kiVorschlag.isPending}
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            {t('ki.vorschlagen')}
+          </Button>
+        )}
+      </div>
 
       {data.bereitsAufgetrennt && (
         <div className="mb-4">
