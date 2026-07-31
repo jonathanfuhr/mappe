@@ -3,6 +3,7 @@ import { env } from './env'
 import { prisma } from './db'
 import { ensureStorage } from './lib/storage'
 import { startMailScheduler, stopMailScheduler } from './mail/scheduler'
+import { startRetentionScheduler, stopRetentionScheduler } from './retention/scheduler'
 
 async function main(): Promise<void> {
   await ensureStorage()
@@ -15,10 +16,12 @@ async function main(): Promise<void> {
   })
 
   if (env.mailPollSeconds > 0) startMailScheduler()
+  startRetentionScheduler()
 
   const shutdown = (signal: string): void => {
     console.log(`[mappe] ${signal} empfangen – fahre herunter.`)
     stopMailScheduler()
+    stopRetentionScheduler()
     server.close(() => {
       void prisma.$disconnect().then(() => process.exit(0))
     })

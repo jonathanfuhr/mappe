@@ -6,11 +6,15 @@ import { audit } from '../lib/audit'
 import { badRequest, conflict, unauthorized, wrap } from '../lib/errors'
 import { body } from '../lib/validate'
 import { getSetting } from '../settings/service'
+import { entraRouter } from './entra'
 import { currentUser, requireAuth } from './middleware'
 import { checkPasswordStrength, hashPassword, verifyPassword } from './password'
 import { clearSessionCookie, setSessionCookie, signSession } from './tokens'
 
 export const authRouter = Router()
+
+// Microsoft-Login liegt unter /api/auth/entra/*
+authRouter.use('/entra', entraRouter)
 
 /**
  * Anmeldeversuche werden gebremst. Der Zähler läuft über die IP – bei einem

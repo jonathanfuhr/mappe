@@ -18,6 +18,7 @@ const BEREICHE: { schluessel: Bereich; label: string }[] = [
   { schluessel: 'allgemein', label: t('einstellungen.allgemein') },
   { schluessel: 'mail', label: t('einstellungen.mail') },
   { schluessel: 'ki', label: t('einstellungen.ki') },
+  { schluessel: 'anmeldung', label: t('einstellungen.anmeldungBereich') },
 ]
 
 /** Vorlagen für die gängigen Anbieter – erspart das Nachschlagen der URLs. */
@@ -77,6 +78,7 @@ export function EinstellungenPage() {
       {bereich === 'allgemein' && <AllgemeinBereich />}
       {bereich === 'mail' && <MailBereich />}
       {bereich === 'ki' && <KiBereich />}
+      {bereich === 'anmeldung' && <AnmeldungBereich />}
     </Seite>
   )
 }
@@ -518,6 +520,126 @@ function KiBereich() {
         </Karte>
       )}
     </div>
+  )
+}
+
+// --- Anmeldung --------------------------------------------------------------
+
+interface AnmeldungEinstellungen {
+  lokalAktiv: boolean
+  entraAktiv: boolean
+  entra: { tenantId: string; clientId: string; clientSecret: string }
+  erlaubteDomaenen: string[]
+  kontenAutomatischAnlegen: boolean
+}
+
+function AnmeldungBereich() {
+  const toast = useToast()
+  const { abfrage, wert, setze, geaendert, speichern } = useBereich<AnmeldungEinstellungen>('anmeldung')
+
+  if (abfrage.isLoading) return <LadeZustand />
+
+  const entra = wert.entra ?? { tenantId: '', clientId: '', clientSecret: '' }
+  const setzeEntra = (feld: keyof AnmeldungEinstellungen['entra'], neu: string) =>
+    setze('entra', { ...entra, [feld]: neu })
+
+  const secretGesetzt = wert._gesetzt?.['entra.clientSecret']
+  // Aussperrschutz: Die lokale Anmeldung darf erst weg, wenn der
+  // Microsoft-Login wirklich steht. Sonst kommt niemand mehr hinein.
+  const entraVollstaendig =
+    wert.entraAktiv && Boolean(entra.tenantId && entra.clientId && (entra.clientSecret || secretGesetzt))
+
+  const redirect = `${window.location.origin}/api/auth/entra/callback`
+
+  return (
+    <Karte titel={t('einstellungen.anmeldungBereich')}>
+      <div className="max-w-2xl space-y-4">
+        <Checkbox
+          label={t('anmeldungBereich.lokalAktiv')}
+          checked={wert.lokalAktiv ?? true}
+          disabled={!entraVollstaendig}
+          hilfe={!entraVollstaendig ? t('anmeldungBereich.aussperrschutz') : undefined}
+          onChange={(e) => setze('lokalAktiv', e.target.checked)}
+        />
+
+        <div className="border-t border-slate-100 pt-4">
+          <Checkbox
+            label={t('anmeldungBereich.entraAktiv')}
+            hilfe={t('anmeldungBereich.entraHilfe')}
+            checked={wert.entraAktiv ?? false}
+            onChange={(e) => setze('entraAktiv', e.target.checked)}
+          />
+        </div>
+
+        {wert.entraAktiv && (
+          <>
+            <div>
+              <span className="feld-label">{t('anmeldungBereich.redirectUri')}</span>
+              <div className="flex gap-2">
+                <input
+                  readOnly
+                  value={redirect}
+                  className="h-10 w-full rounded-lg border border-slate-300 bg-slate-50 px-3 font-mono text-xs text-slate-700"
+                />
+                <Button
+                  variante="umriss"
+                  onClick={() => {
+                    void navigator.clipboard.writeText(redirect)
+                    toast.erfolg(t('anmeldungBereich.kopiert'))
+                  }}
+                >
+                  Kopieren
+                </Button>
+              </div>
+              <p className="feld-hilfe">{t('anmeldungBereich.redirectUriHilfe')}</p>
+            </div>
+
+            <Input
+              label={t('mail.tenantId')}
+              value={entra.tenantId}
+              onChange={(e) => setzeEntra('tenantId', e.target.value)}
+            />
+            <Input
+              label={t('mail.clientId')}
+              value={entra.clientId}
+              onChange={(e) => setzeEntra('clientId', e.target.value)}
+            />
+            <Input
+              label={t('mail.clientSecret')}
+              type="password"
+              value={entra.clientSecret}
+              onChange={(e) => setzeEntra('clientSecret', e.target.value)}
+              placeholder={secretGesetzt ? '••••••••' : ''}
+              hilfe={secretGesetzt ? t('einstellungen.geheimnisGesetzt') : undefined}
+            />
+
+            <Input
+              label={t('anmeldungBereich.erlaubteDomaenen')}
+              hilfe={t('anmeldungBereich.erlaubteDomaenenHilfe')}
+              value={(wert.erlaubteDomaenen ?? []).join(', ')}
+              onChange={(e) =>
+                setze(
+                  'erlaubteDomaenen',
+                  e.target.value
+                    .split(',')
+                    .map((d) => d.trim().toLowerCase())
+                    .filter(Boolean),
+                )
+              }
+              placeholder="firma.de"
+            />
+
+            <Checkbox
+              label={t('anmeldungBereich.kontenAnlegen')}
+              hilfe={t('anmeldungBereich.kontenAnlegenHilfe')}
+              checked={wert.kontenAutomatischAnlegen ?? false}
+              onChange={(e) => setze('kontenAutomatischAnlegen', e.target.checked)}
+            />
+          </>
+        )}
+      </div>
+      <SpeichernLeiste geaendert={geaendert} laedt={speichern.isPending} onSpeichern={() => speichern.mutate()} />
+    </Karte>
   )
 }
 

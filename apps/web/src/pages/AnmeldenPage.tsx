@@ -17,7 +17,11 @@ export function AnmeldenPage() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [passwort, setPasswort] = useState('')
-  const [fehler, setFehler] = useState<string | null>(null)
+  // Der Microsoft-Rücksprung hängt den Grund an die Adresse, wenn etwas
+  // schiefging – sonst landet man wortlos wieder auf der Anmeldeseite.
+  const [fehler, setFehler] = useState<string | null>(
+    new URLSearchParams(window.location.search).get('anmeldefehler'),
+  )
   const [laedt, setLaedt] = useState(false)
 
   async function absenden(e: FormEvent) {

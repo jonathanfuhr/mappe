@@ -19,6 +19,7 @@ import { useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { KategorieBadge, PhasenBadge, QuellenBadge } from '../components/Anzeigen'
 import { BewertungsKarte, NotizenKarte } from '../components/BewertungUndNotizen'
+import { GespraecheKarte } from '../components/GespraecheKarte'
 import { MailSendenDialog } from '../components/MailSendenDialog'
 import { Seite } from '../components/Layout'
 import { PdfBetrachter } from '../components/PdfBetrachter'
@@ -290,6 +291,13 @@ export function BewerbungPage() {
             bewerbungId={bewerbung.id}
             bewertungen={bewerbung.ratings}
             schnitt={bewerbung.bewertung}
+            onGeaendert={aktualisiere}
+          />
+
+          <GespraecheKarte
+            bewerbungId={bewerbung.id}
+            phase={bewerbung.stage}
+            gespraeche={bewerbung.interviews}
             onGeaendert={aktualisiere}
           />
 

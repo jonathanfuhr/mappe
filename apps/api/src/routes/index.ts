@@ -6,12 +6,14 @@ import { currentUser } from '../auth/middleware'
 import { prisma } from '../db'
 import { wrap } from '../lib/errors'
 import { mailRouter } from '../mail/routes'
+import { aufbewahrungRouter } from '../retention/routes'
 import { bewerberRouter } from './bewerber'
 import { bewerbungenRouter } from './bewerbungen'
 import { bewertungenRouter, kommentareRouter, notizenRouter } from './bewertungen'
 import { dokumenteRouter } from './dokumente'
 import { stellenRouter } from './stellen'
 import { usersRouter } from './users'
+import { gespraecheRouter } from './gespraeche'
 import { freifelderRouter, vorlagenRouter } from './vorlagen'
 
 export const apiRouter = Router()
@@ -26,6 +28,8 @@ apiRouter.use('/notizen', notizenRouter)
 apiRouter.use('/kommentare', kommentareRouter)
 apiRouter.use('/vorlagen', vorlagenRouter)
 apiRouter.use('/freifelder', freifelderRouter)
+apiRouter.use('/gespraeche', gespraecheRouter)
+apiRouter.use('/aufbewahrung', aufbewahrungRouter)
 apiRouter.use('/ki', kiRouter)
 apiRouter.use('/mail', mailRouter)
 

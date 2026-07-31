@@ -1,4 +1,5 @@
 import { prisma } from '../db'
+import { seedGespraechsvorlage } from './gespraechsvorlage'
 import { seedVorlagen } from './vorlagen'
 
 /**
@@ -7,6 +8,7 @@ import { seedVorlagen } from './vorlagen'
  */
 export async function seedAll(): Promise<void> {
   await seedVorlagen()
+  await seedGespraechsvorlage()
 }
 
 export { seedSchritt } from './helfer'

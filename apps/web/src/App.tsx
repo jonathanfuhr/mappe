@@ -4,6 +4,7 @@ import { Hinweis, LadeZustand } from './components/ui'
 import { t } from './i18n'
 import { useAuth, type Rolle } from './lib/auth'
 import { AnmeldenPage } from './pages/AnmeldenPage'
+import { AufbewahrungPage } from './pages/AufbewahrungPage'
 import { BewerberDetailPage, BewerberListePage } from './pages/BewerberPage'
 import { BewerbungPage } from './pages/BewerbungPage'
 import { BewerbungenPage } from './pages/BewerbungenPage'
@@ -87,6 +88,14 @@ export function App() {
           element={
             <NurFuer rollen={NUR_ADMIN}>
               <NutzerPage />
+            </NurFuer>
+          }
+        />
+        <Route
+          path="/aufbewahrung"
+          element={
+            <NurFuer rollen={NUR_ADMIN}>
+              <AufbewahrungPage />
             </NurFuer>
           }
         />
