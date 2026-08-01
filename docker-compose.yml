@@ -35,13 +35,16 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-mappe}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-mappe}?schema=public
       SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET fehlt in der .env}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY fehlt in der .env}
-      APP_URL: ${APP_URL:-http://localhost:3000}
+      APP_URL: ${APP_URL:-http://localhost:4300}
       STORAGE_DIR: /data/storage
+      # Im Container lauscht die Anwendung immer auf 3000. Nach außen sichtbar
+      # ist nur MAPPE_PORT – so bleibt das Abbild unabhängig davon, welcher
+      # Port auf dem jeweiligen Server noch frei ist.
       PORT: 3000
       NODE_ENV: production
       TZ: ${TZ:-Europe/Berlin}
     ports:
-      - '${PORT:-3000}:3000'
+      - '${MAPPE_PORT:-4300}:3000'
     volumes:
       - dokumente:/data/storage
 

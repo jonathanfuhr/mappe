@@ -43,14 +43,15 @@ Versionen lohnt sich eine Sicherung.
 
 ## HTTPS
 
-Der Container spricht HTTP auf Port 3000. Für HTTPS gehört ein Reverse Proxy
-davor. Zwei Wege, die sich bewährt haben:
+Der Container spricht HTTP auf Port 3000; nach außen ist er über `MAPPE_PORT`
+erreichbar (Vorgabe 4300). Für HTTPS gehört ein Reverse Proxy davor. Zwei Wege,
+die sich bewährt haben:
 
 ### Caddy
 
 ```
 bewerbung.firma.de {
-    reverse_proxy localhost:3000
+    reverse_proxy localhost:4300
 }
 ```
 
@@ -59,7 +60,7 @@ Caddy holt das Zertifikat selbst.
 ### Cloudflare Tunnel
 
 ```bash
-cloudflared tunnel --url http://localhost:3000
+cloudflared tunnel --url http://localhost:4300
 ```
 
 Ohne offenen Port nach außen – praktisch hinter einem Anschluss ohne feste IP.
@@ -67,6 +68,43 @@ Ohne offenen Port nach außen – praktisch hinter einem Anschluss ohne feste IP
 **Wichtig:** In beiden Fällen `APP_URL` in der `.env` auf die öffentliche
 Adresse mit `https://` setzen. Davon hängt ab, ob das Sitzungs-Cookie als
 `secure` gesetzt wird und wie die Redirect-URI für den Microsoft-Login lautet.
+
+## Betrieb ohne Internet
+
+Mappe läuft vollständig in einem abgeschotteten Netz. Nach dem einmaligen
+Bauen des Abbilds braucht es keinerlei Verbindung nach draußen:
+
+- Die Oberfläche lädt **nichts** nach – keine Schriften, keine Symbole, kein
+  CDN. Auch der PDF-Betrachter bringt seinen Worker als Teil des Abbilds mit.
+- Die serverseitige PDF-Textextraktion holt weder Schriften noch
+  Zeichentabellen aus dem Netz.
+- Jede ausgehende Verbindung steckt in einem abschaltbaren Adapter: Mail
+  (Graph, IMAP/SMTP, Gmail), KI und der Microsoft-Login. Sind sie aus – die
+  Voreinstellung –, baut Mappe **keine einzige** Verbindung nach außen auf.
+
+Nachgemessen: Mit abgeschalteten Adaptern öffnet der Server über die gesamte
+Laufzeit inklusive beider Hintergrundläufe keine Verbindung außer der zur
+Datenbank. Im Browser wurden alle elf Seiten samt PDF-Betrachter aufgerufen –
+ohne eine einzige Anfrage an eine fremde Adresse.
+
+Was in einem solchen Aufbau sinnvoll bleibt:
+
+- **Mail über einen Server im eigenen Netz** (IMAP/SMTP-Adapter). Der Adapter
+  fragt nicht, wo der Server steht.
+- **KI lokal über Ollama** auf einem Rechner im selben Netz. Als Basis-URL
+  dessen IP eintragen.
+
+Was nicht geht: Microsoft 365, Gmail und die KI-Anbieter im Netz – die
+brauchen naturgemäß eine Verbindung dorthin.
+
+Zwei Kleinigkeiten für ein Netz ohne Internet:
+
+- Beim Bauen des Abbilds werden Pakete geladen. Entweder auf einem Rechner mit
+  Verbindung bauen und das Abbild übertragen (`docker save` / `docker load`),
+  oder eine interne Registry benutzen.
+- Die beiden Verweise im Profil (Lizenztext und Quelltext) lassen sich
+  offline nicht öffnen. Sie stehen dort, weil § 13 der AGPL verlangt, den
+  Quelltext zu benennen – für den Betrieb sind sie ohne Bedeutung.
 
 ## Wo Mappe läuft
 

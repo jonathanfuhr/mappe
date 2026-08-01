@@ -47,6 +47,13 @@ einzeln abschaltbar.
 Talent-Pool, vollständiges Löschen auf Knopfdruck, Protokoll über jede
 Löschung.
 
+**Läuft auch ohne Internet.** Die Oberfläche lädt nichts nach – keine
+Schriften, keine Symbole, kein CDN. Jede Verbindung nach draußen steckt in
+einem abschaltbaren Adapter (Mail, KI, Microsoft-Login). Sind sie aus, baut
+Mappe keine einzige auf. Mit einem Mailserver im eigenen Netz und Ollama auf
+eigener Hardware bleibt der volle Funktionsumfang erhalten. Einzelheiten in
+[docs/betrieb.md](docs/betrieb.md#betrieb-ohne-internet).
+
 ## Schnellstart
 
 Voraussetzung: Docker und Docker Compose.
@@ -64,7 +71,7 @@ openssl rand -hex 16   # POSTGRES_PASSWORD
 docker compose up -d
 ```
 
-Danach `http://localhost:3000` aufrufen. Der erste angelegte Nutzer wird
+Danach `http://localhost:4300` aufrufen. Der erste angelegte Nutzer wird
 automatisch Administrator.
 
 > **`ENCRYPTION_KEY` niemals im laufenden Betrieb ändern.** Mit ihm sind alle
@@ -120,7 +127,7 @@ npm install
 cp .env.example .env          # DATABASE_URL auf die lokale Postgres zeigen lassen
 npm run prisma:migrate
 npm run seed
-npm run dev                   # API auf 3001, Oberfläche auf 5173
+npm run dev                   # Oberfläche auf 4300, API auf 4301
 ```
 
 Tests:

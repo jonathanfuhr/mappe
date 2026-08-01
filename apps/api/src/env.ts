@@ -40,10 +40,17 @@ export const env = {
   isTest,
   isDev: !isProd && !isTest,
 
-  port: Number(process.env.PORT ?? (isProd ? 3000 : 3001)),
+  /*
+   * Der Port, auf dem dieser Prozess lauscht – nicht zu verwechseln mit
+   * MAPPE_PORT aus der .env. Im Container ist er fest auf 3000 gesetzt und
+   * wird nach außen auf MAPPE_PORT abgebildet; in der Entwicklung liegt die
+   * API auf 4301 und Vite auf 4300, sodass die Adresse im Browser in beiden
+   * Fällen dieselbe ist.
+   */
+  port: Number(process.env.PORT ?? (isProd ? 3000 : 4301)),
   databaseUrl: required('DATABASE_URL', isTest ? 'postgresql://localhost/mappe_test' : undefined),
 
-  appUrl: (process.env.APP_URL ?? 'http://localhost:3000').replace(/\/+$/, ''),
+  appUrl: (process.env.APP_URL ?? 'http://localhost:4300').replace(/\/+$/, ''),
   sessionSecret: secret('SESSION_SECRET'),
   encryptionKey: secret('ENCRYPTION_KEY'),
 
