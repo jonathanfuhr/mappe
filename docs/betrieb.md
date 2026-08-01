@@ -4,11 +4,71 @@
 
 Zwei Dinge – beide gehören in dieselbe Sicherung, weil sie zusammengehören:
 
-1. **Die Datenbank** (Volume `db-daten`)
-2. **Die Dateien** (Volume `dokumente`) – Dokumente, Anhänge, Original-Mails
+1. **Die Datenbank** (Volume `db-daten` oder das Verzeichnis aus `DB_DIR`)
+2. **Die Dateien** (Volume `dokumente` oder `DOKUMENTE_DIR`) – Dokumente,
+   Anhänge, Original-Mails
 
 Dazu die `.env`: Ohne `ENCRYPTION_KEY` lassen sich die hinterlegten
 Zugangsdaten nicht mehr entschlüsseln.
+
+### Wo die Daten liegen
+
+Ohne Angabe in der `.env` verwaltet Docker zwei benannte Volumes. Das ist
+bequem und funktioniert überall – die Daten liegen dann aber im Docker-Abbild.
+
+Stehen in `DB_DIR` und `DOKUMENTE_DIR` Pfade, werden daraus Bind-Mounts auf
+genau diese Verzeichnisse:
+
+```
+DB_DIR=/mnt/user/appdata/mappe/db
+DOKUMENTE_DIR=/mnt/user/appdata/mappe/dokumente
+```
+
+**Das Verzeichnis muss dem Container gehören.** Mappe läuft aus gutem Grund
+nicht als `root`, sondern als Benutzer 1000. Ein frisch angelegtes Verzeichnis
+gehört aber `root` – der Start bricht dann mit „Die Ablage ist nicht
+beschreibbar" ab:
+
+```bash
+mkdir -p /mnt/user/appdata/mappe/dokumente
+chown -R 1000:1000 /mnt/user/appdata/mappe/dokumente
+```
+
+Für `DB_DIR` ist das nicht nötig: Das Postgres-Abbild startet als `root` und
+richtet sein Verzeichnis selbst ein.
+
+**Auf Unraid gehören dort Pfade hinein.** Ein benanntes Volume landet im
+`docker.img`, und das hat drei unangenehme Folgen: Das appdata-Backup erfasst
+die Daten nicht, das Abbild ist knapp bemessen, und läuft es voll, fallen alle
+anderen Container auf demselben Host mit um.
+
+### Nachträglich umstellen
+
+Ein Wechsel bewegt vorhandene Daten **nicht** – Docker legt schlicht neue,
+leere Verzeichnisse an. Der Weg dahin:
+
+```bash
+# 1. Sichern, solange die alte Ablage noch in Betrieb ist
+docker compose exec -T db pg_dump -U mappe mappe > /pfad/sicherung.sql
+docker run --rm -v mappe_dokumente:/daten -v /pfad:/ziel alpine \
+  tar czf /ziel/dokumente.tar.gz -C /daten .
+
+# 2. Anhalten, Pfade in die .env eintragen, Verzeichnisse anlegen
+docker compose down
+mkdir -p /mnt/user/appdata/mappe/db /mnt/user/appdata/mappe/dokumente
+
+# 3. Nur die Datenbank starten – sie richtet sich im neuen Verzeichnis ein
+docker compose up -d db
+
+# 4. Sicherung einspielen, dann den Rest starten
+cat /pfad/sicherung.sql | docker compose exec -T db psql -U mappe -d mappe
+tar xzf /pfad/dokumente.tar.gz -C /mnt/user/appdata/mappe/dokumente
+docker compose up -d
+```
+
+Die alten Volumes bleiben dabei unangetastet und lassen sich später mit
+`docker volume rm mappe_db-daten mappe_dokumente` entfernen – erst, wenn der
+neue Stand nachweislich läuft.
 
 ### Sicherung
 
