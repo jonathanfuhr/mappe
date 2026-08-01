@@ -534,20 +534,36 @@ model InterviewTemplate {
   interviews Interview[]
 }
 
+// Wie das Gespräch geführt wurde. Ein Telefonat ist der häufigste Fall in der
+// zweiten Runde und war vorher nur als Freitext im Titel abbildbar – damit ließ
+// sich nicht danach filtern und nichts auswerten.
+enum InterviewKind {
+  PERSOENLICH
+  TELEFON
+  VIDEO
+}
+
 model Interview {
   id            String             @id @default(uuid())
   applicationId String
   application   Application        @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  // Ohne Leitfaden geführt: dann zählt allein das Notizfeld. Genau der Fall
+  // einer zweiten oder dritten Runde, in der es keinen Fragenkatalog braucht.
   templateId    String?
   template      InterviewTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
   userId        String
   user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   title         String             @default("Gespräch")
+  kind          InterviewKind      @default(PERSOENLICH)
   conductedAt   DateTime?
   // Antworten je Frage: { [questionId]: string }
   answers       Json               @default("{}")
   // Freie Notizen zum Gespräch
   notes         String             @default("")
+  // Gesetzt heißt: abgeschlossen. Danach ist der Bogen nur noch zu lesen –
+  // nachgetragene Antworten nach dem Gespräch wären wertlos bis irreführend.
+  // Zum Ändern wird bewusst wieder geöffnet (siehe Route „wieder-oeffnen").
+  completedAt   DateTime?
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
 

@@ -32,9 +32,12 @@ const vorlagenSchema = z.object({
 gespraecheRouter.get(
   '/vorlagen',
   requireAuth,
-  wrap(async (_req, res) => {
+  wrap(async (req, res) => {
+    // Die Verwaltung braucht auch die abgeschalteten – überall sonst stören
+    // sie nur, deshalb bleibt „nur aktive" die Vorgabe.
+    const auchInaktive = req.query.alle === 'true' && currentUser(req).role === 'ADMIN'
     const vorlagen = await prisma.interviewTemplate.findMany({
-      where: { active: true },
+      where: auchInaktive ? {} : { active: true },
       orderBy: [{ jobId: 'asc' }, { name: 'asc' }],
       include: { job: { select: { id: true, title: true } } },
     })
@@ -87,10 +90,15 @@ gespraecheRouter.delete(
 
 // --- Gespräche --------------------------------------------------------------
 
+const ARTEN = ['PERSOENLICH', 'TELEFON', 'VIDEO'] as const
+
 const gespraechSchema = z.object({
   bewerbungId: z.string().uuid(),
+  // Bewusst auch `null` erlaubt: ein Gespräch ohne Leitfaden ist der
+  // Regelfall der zweiten und dritten Runde – dann zählt nur das Notizfeld.
   vorlageId: z.string().uuid().nullable().optional(),
   titel: z.string().trim().max(160).default('Gespräch'),
+  art: z.enum(ARTEN).default('PERSOENLICH'),
 })
 
 /**
@@ -121,6 +129,7 @@ gespraecheRouter.post(
         templateId: d.vorlageId ?? null,
         userId: me.id,
         title: d.titel,
+        kind: d.art,
       },
       include: { user: { select: { id: true, name: true } }, template: true },
     })
@@ -133,7 +142,10 @@ const antwortenSchema = z.object({
   antworten: z.record(z.string().max(8000)).optional(),
   notizen: z.string().max(20000).optional(),
   titel: z.string().trim().max(160).optional(),
+  art: z.enum(ARTEN).optional(),
   gefuehrtAm: z.string().datetime().nullable().optional(),
+  /** Mit dem Speichern abschließen. Danach ist der Bogen nur noch zu lesen. */
+  abschliessen: z.boolean().optional(),
 })
 
 gespraecheRouter.patch(
@@ -149,6 +161,12 @@ gespraecheRouter.patch(
     if (gespraech.userId !== me.id) {
       throw forbidden('Nur die eigenen Gesprächsnotizen lassen sich ändern.')
     }
+    // Ein abgeschlossenes Gespräch ist zu. Sonst ließe sich Tage später
+    // nachtragen, was angeblich im Gespräch gesagt wurde – und niemand sähe es
+    // dem Bogen an. Wer wirklich ändern muss, öffnet ihn ausdrücklich wieder.
+    if (gespraech.completedAt) {
+      throw badRequest('Dieses Gespräch ist abgeschlossen. Zum Ändern bitte wieder öffnen.')
+    }
 
     const aktualisiert = await prisma.interview.update({
       where: { id: req.params.id },
@@ -156,11 +174,51 @@ gespraecheRouter.patch(
         ...(d.antworten !== undefined ? { answers: d.antworten as object } : {}),
         ...(d.notizen !== undefined ? { notes: d.notizen } : {}),
         ...(d.titel !== undefined ? { title: d.titel } : {}),
+        ...(d.art !== undefined ? { kind: d.art } : {}),
         ...(d.gefuehrtAm !== undefined
           ? { conductedAt: d.gefuehrtAm ? new Date(d.gefuehrtAm) : null }
           : {}),
+        ...(d.abschliessen ? { completedAt: new Date() } : {}),
       },
       include: { user: { select: { id: true, name: true } }, template: true },
+    })
+    if (d.abschliessen) {
+      await audit(me.id, 'gespraech-abgeschlossen', 'interview', aktualisiert.id, {
+        bewerbungId: aktualisiert.applicationId,
+      })
+    }
+    res.json(aktualisiert)
+  }),
+)
+
+/**
+ * Ein abgeschlossenes Gespräch wieder öffnen.
+ *
+ * Bewusst ein eigener Schritt und nicht einfach ein `completedAt: null` im
+ * PATCH: So steht im Protokoll, dass ein fertiger Bogen noch einmal angefasst
+ * wurde – bei einer späteren Rückfrage ist das der Unterschied zwischen
+ * „ergänzt" und „unbemerkt geändert".
+ */
+gespraecheRouter.post(
+  '/:id/wieder-oeffnen',
+  requireAuth,
+  wrap(async (req, res) => {
+    const me = currentUser(req)
+    const gespraech = await prisma.interview.findUnique({ where: { id: req.params.id } })
+    if (!gespraech) throw notFound('Dieses Gespräch gibt es nicht.')
+    if (gespraech.userId !== me.id) {
+      throw forbidden('Nur die eigenen Gesprächsnotizen lassen sich ändern.')
+    }
+    if (!gespraech.completedAt) throw badRequest('Dieses Gespräch ist gar nicht abgeschlossen.')
+
+    const aktualisiert = await prisma.interview.update({
+      where: { id: req.params.id },
+      data: { completedAt: null },
+      include: { user: { select: { id: true, name: true } }, template: true },
+    })
+    await audit(me.id, 'gespraech-wieder-geoeffnet', 'interview', aktualisiert.id, {
+      bewerbungId: aktualisiert.applicationId,
+      warAbgeschlossenSeit: gespraech.completedAt,
     })
     res.json(aktualisiert)
   }),
@@ -198,8 +256,9 @@ gespraecheRouter.get(
       where: { active: true, OR: [{ jobId: bewerbung.jobId }, { jobId: null }] },
       orderBy: [{ jobId: 'desc' }, { name: 'asc' }],
     })
-    if (vorlagen.length === 0) throw badRequest('Es ist keine Gesprächsvorlage hinterlegt.')
-
+    // Eine leere Liste ist kein Fehler. Früher brach das hier ab und machte
+    // damit auch das Gespräch *ohne* Leitfaden unmöglich – obwohl das Modell
+    // es längst vorsah und die zweite Runde genau danach verlangt.
     res.json(vorlagen)
   }),
 )

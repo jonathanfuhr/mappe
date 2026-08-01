@@ -64,7 +64,8 @@
     "einstellungen": "Einstellungen",
     "nutzer": "Nutzer",
     "profil": "Profil",
-    "dsgvo": "Aufbewahrung"
+    "dsgvo": "Aufbewahrung",
+    "zusagen": "Zusagen"
   },
   "rollen": {
     "ADMIN": "Admin",
@@ -349,6 +350,18 @@
     "aktuellerWert": "bisher",
     "keinWert": "leer"
   },
+  "zusagen": {
+    "titel": "Zusagen",
+    "beschreibung": "Wer eingestellt wurde – aus dem Bewerbungsverfahren in die Belegschaft.",
+    "erklaerung": "Zusagen unterliegen keiner Löschfrist. Kommt der Arbeitsvertrag zustande, wechselt der Zweck der Daten: Aus Bewerbungsunterlagen werden Teile der Personalakte, und die sind aufbewahrungspflichtig. Diese Bewerbungen bleiben deshalb dauerhaft erhalten – samt der Person dahinter.",
+    "leerTitel": "Noch keine Zusage",
+    "leerText": "Sobald eine Bewerbung auf die Phase „Zusage“ gesetzt wird, erscheint sie hier.",
+    "seit": "Zusage seit",
+    "stelle": "Stelle",
+    "ohneStelle": "Ohne Zuordnung",
+    "anzahl": "{n} eingestellt",
+    "geschuetzt": "Dauerhaft aufbewahrt"
+  },
   "aufbewahrung": {
     "titel": "Aufbewahrung",
     "beschreibung": "Zwei getrennte Fristen: eine für Bewerbungen, eine für Personen.",
@@ -382,7 +395,25 @@
     "notizen": "Freie Notizen",
     "speichern": "Notizen speichern",
     "zuFrueh": "Die Bewerbung ist noch nicht auf „Eingeladen“ – die Vorlage lässt sich trotzdem nutzen.",
-    "unzulaessig": "Fragen nach Familienplanung, Schwangerschaft, Religion, Parteizugehörigkeit oder Gesundheit sind im Bewerbungsgespräch unzulässig und stehen deshalb nicht in der Vorlage."
+    "unzulaessig": "Fragen nach Familienplanung, Schwangerschaft, Religion, Parteizugehörigkeit oder Gesundheit sind im Bewerbungsgespräch unzulässig und stehen deshalb nicht in der Vorlage.",
+    "ohneLeitfaden": "Ohne Leitfaden – nur Notizen",
+    "keineVorlageHinweis": "Es ist kein Leitfaden hinterlegt. Ein Gespräch nur mit Notizfeld geht trotzdem.",
+    "art": "Art des Gesprächs",
+    "arten": {
+      "PERSOENLICH": "Vor Ort",
+      "TELEFON": "Telefonat",
+      "VIDEO": "Video"
+    },
+    "abschliessen": "Speichern und abschließen",
+    "abgeschlossen": "Abgeschlossen",
+    "abgeschlossenAm": "Abgeschlossen am {datum}",
+    "bearbeiten": "Bearbeiten",
+    "wiederOeffnen": "Zum Bearbeiten wieder öffnen",
+    "wiederGeoeffnet": "Das Gespräch ist wieder offen.",
+    "nichtsAusgefuellt": "Es wurde nichts ausgefüllt.",
+    "abschliessenFrage": "Gespräch abschließen? Danach lässt es sich nur noch lesen – zum Ändern muss es ausdrücklich wieder geöffnet werden.",
+    "inNeuemTab": "In eigenem Tab öffnen",
+    "zwischenspeichern": "Zwischenspeichern"
   },
   "anmeldungBereich": {
     "lokalAktiv": "Anmeldung mit E-Mail und Passwort erlauben",

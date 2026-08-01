@@ -179,12 +179,17 @@ export interface Vorschlag {
   createdAt: string
 }
 
+export type GespraechsArt = 'PERSOENLICH' | 'TELEFON' | 'VIDEO'
+
 export interface Gespraech {
   id: string
   title: string
+  kind: GespraechsArt
   conductedAt: string | null
   answers: Record<string, string>
   notes: string
+  /** Gesetzt heißt: abgeschlossen, nur noch lesbar. */
+  completedAt: string | null
   createdAt: string
   user: { id: string; name: string }
   template: { id: string; name: string; sections: GespraechsAbschnitt[] } | null

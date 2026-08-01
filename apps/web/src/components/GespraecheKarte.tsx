@@ -1,10 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { MessageSquare, Plus, Trash2 } from 'lucide-react'
+import { Lock, MessageSquare, Phone, Plus, Trash2, Users, Video } from 'lucide-react'
 import { useState } from 'react'
 import { formatDatum, t } from '../i18n'
 import { api, ApiError } from '../lib/api'
 import { useAuth } from '../lib/auth'
-import type { Gespraech, GespraechsAbschnitt } from '../lib/typen'
+import type { Gespraech, GespraechsAbschnitt, GespraechsArt } from '../lib/typen'
 import { Badge, Button, Hinweis, Karte, Select, Textarea } from './ui'
 import { useToast } from './Toast'
 
@@ -15,11 +15,31 @@ interface Vorlage {
   jobId: string | null
 }
 
+const ARTEN: GespraechsArt[] = ['PERSOENLICH', 'TELEFON', 'VIDEO']
+
+/** Kennzeichen ohne Beschriftung wäre raten – deshalb Symbol *und* Text. */
+function ArtSymbol({ art }: { art: GespraechsArt }) {
+  const klasse = 'h-3.5 w-3.5'
+  if (art === 'TELEFON') return <Phone className={klasse} />
+  if (art === 'VIDEO') return <Video className={klasse} />
+  return <Users className={klasse} />
+}
+
 /**
  * Gesprächsvorlage und Notizen.
  *
  * Jede Person schreibt ihre eigenen Notizen – auch Interviewer, die sonst
  * nichts ändern dürfen. Fremde Notizen bleiben lesbar, aber unangetastet.
+ *
+ * Zwei Dinge sind hier bewusst so gebaut:
+ *
+ *  - **Ein Leitfaden ist nicht nötig.** Zweite und dritte Runden laufen ohne
+ *    Fragenkatalog; dann zählt allein das Notizfeld. Früher sperrte die
+ *    Oberfläche das Anlegen, sobald keine Vorlage vorlag – obwohl das
+ *    Datenmodell den Fall längst vorsah.
+ *  - **Abgeschlossen ist abgeschlossen.** Nach dem Abschließen zeigt der Bogen
+ *    nur noch, was ausgefüllt wurde. Wer später ändern will, öffnet ihn
+ *    ausdrücklich wieder – das steht dann im Protokoll.
  */
 export function GespraecheKarte({
   bewerbungId,
@@ -36,6 +56,7 @@ export function GespraecheKarte({
   const queryClient = useQueryClient()
   const { nutzer } = useAuth()
   const [vorlageId, setVorlageId] = useState('')
+  const [art, setArt] = useState<GespraechsArt>('PERSOENLICH')
 
   const { data: vorlagen } = useQuery({
     queryKey: ['gespraechsvorlagen', bewerbungId],
@@ -46,8 +67,11 @@ export function GespraecheKarte({
     mutationFn: () =>
       api.post<Gespraech & { hinweis: string | null }>('/gespraeche', {
         bewerbungId,
-        vorlageId: vorlageId || (vorlagen?.[0]?.id ?? null),
+        // Leerer Wert heißt hier ausdrücklich „ohne Leitfaden“ – nicht
+        // „nimm die erste Vorlage“.
+        vorlageId: vorlageId || null,
         titel: 'Gespräch',
+        art,
       }),
     onSuccess: async (neu) => {
       await onGeaendert()
@@ -57,32 +81,43 @@ export function GespraecheKarte({
   })
 
   const zuFrueh = ['NEU', 'GESICHTET'].includes(phase)
+  const hatVorlagen = (vorlagen?.length ?? 0) > 0
 
   return (
     <Karte
       titel={t('gespraech.titel')}
       aktion={
-        <div className="flex items-center gap-2">
-          {(vorlagen?.length ?? 0) > 1 && (
-            <Select
-              value={vorlageId}
-              onChange={(e) => setVorlageId(e.target.value)}
-              className="w-[14rem]"
-              aria-label={t('gespraech.vorlage')}
-            >
-              {vorlagen?.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.name}
-                </option>
-              ))}
-            </Select>
-          )}
+        <div className="flex flex-wrap items-center gap-2">
+          <Select
+            value={art}
+            onChange={(e) => setArt(e.target.value as GespraechsArt)}
+            className="w-[9rem]"
+            aria-label={t('gespraech.art')}
+          >
+            {ARTEN.map((a) => (
+              <option key={a} value={a}>
+                {t(`gespraech.arten.${a}`)}
+              </option>
+            ))}
+          </Select>
+          <Select
+            value={vorlageId}
+            onChange={(e) => setVorlageId(e.target.value)}
+            className="w-[14rem]"
+            aria-label={t('gespraech.vorlage')}
+          >
+            <option value="">{t('gespraech.ohneLeitfaden')}</option>
+            {vorlagen?.map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.name}
+              </option>
+            ))}
+          </Select>
           <Button
             variante="umriss"
             groesse="sm"
             onClick={() => anlegen.mutate()}
             laedt={anlegen.isPending}
-            disabled={(vorlagen?.length ?? 0) === 0}
           >
             <Plus className="h-3.5 w-3.5" />
             {t('gespraech.neu')}
@@ -90,11 +125,9 @@ export function GespraecheKarte({
         </div>
       }
     >
-      {(vorlagen?.length ?? 0) === 0 && (
-        <Hinweis ton="warnung">{t('gespraech.keineVorlage')}</Hinweis>
-      )}
+      {!hatVorlagen && <Hinweis ton="info">{t('gespraech.keineVorlageHinweis')}</Hinweis>}
 
-      {zuFrueh && gespraeche.length === 0 && (vorlagen?.length ?? 0) > 0 && (
+      {zuFrueh && gespraeche.length === 0 && (
         <p className="mb-3 text-sm text-slate-500">{t('gespraech.zuFrueh')}</p>
       )}
 
@@ -134,13 +167,27 @@ function GespraechsBlock({
   const toast = useToast()
   const [antworten, setAntworten] = useState<Record<string, string>>(gespraech.answers ?? {})
   const [notizen, setNotizen] = useState(gespraech.notes ?? '')
-  const [offen, setOffen] = useState(eigenes)
+  const [offen, setOffen] = useState(eigenes && !gespraech.completedAt)
+
+  const abgeschlossen = Boolean(gespraech.completedAt)
+  // Schreiben darf nur, wem der Bogen gehört – und nur solange er offen ist.
+  const bearbeitbar = eigenes && !abgeschlossen
 
   const speichern = useMutation({
-    mutationFn: () => api.patch(`/gespraeche/${gespraech.id}`, { antworten, notizen }),
+    mutationFn: (abschliessen: boolean) =>
+      api.patch(`/gespraeche/${gespraech.id}`, { antworten, notizen, abschliessen }),
     onSuccess: async () => {
       await onGeaendert()
       toast.erfolg(t('app.gespeichert'))
+    },
+    onError: (err: unknown) => toast.fehler(err instanceof ApiError ? err.message : t('app.fehler')),
+  })
+
+  const wiederOeffnen = useMutation({
+    mutationFn: () => api.post(`/gespraeche/${gespraech.id}/wieder-oeffnen`, {}),
+    onSuccess: async () => {
+      await onGeaendert()
+      toast.erfolg(t('gespraech.wiederGeoeffnet'))
     },
     onError: (err: unknown) => toast.fehler(err instanceof ApiError ? err.message : t('app.fehler')),
   })
@@ -152,6 +199,17 @@ function GespraechsBlock({
   })
 
   const abschnitte = gespraech.template?.sections ?? []
+
+  // Im abgeschlossenen Zustand zählt nur, was tatsächlich beantwortet wurde.
+  // Leere Felder sind dann kein Formular mehr, sondern Rauschen.
+  const sichtbareAbschnitte = abgeschlossen
+    ? abschnitte
+        .map((a) => ({ ...a, questions: a.questions.filter((f) => (gespraech.answers?.[f.id] ?? '').trim()) }))
+        .filter((a) => a.questions.length > 0)
+    : abschnitte
+
+  const nichtsAusgefuellt =
+    abgeschlossen && sichtbareAbschnitte.length === 0 && !(gespraech.notes ?? '').trim()
 
   return (
     <li className="rounded-lg border border-slate-200">
@@ -169,16 +227,34 @@ function GespraechsBlock({
             {gespraech.user.name} · {formatDatum(gespraech.conductedAt ?? gespraech.createdAt)}
           </span>
         </span>
-        {eigenes && <Badge ton="blau">eigenes</Badge>}
+        <Badge ton="grau">
+          <ArtSymbol art={gespraech.kind} />
+          {t(`gespraech.arten.${gespraech.kind}`)}
+        </Badge>
+        {abgeschlossen && (
+          <Badge ton="gruen">
+            <Lock className="h-3 w-3" />
+            {t('gespraech.abgeschlossen')}
+          </Badge>
+        )}
+        {eigenes && !abgeschlossen && <Badge ton="blau">eigenes</Badge>}
       </button>
 
       {offen && (
         <div className="space-y-4 border-t border-slate-100 px-4 py-4">
-          {eigenes && abschnitte.length > 0 && (
+          {bearbeitbar && abschnitte.length > 0 && (
             <p className="text-xs leading-relaxed text-slate-500">{t('gespraech.unzulaessig')}</p>
           )}
 
-          {abschnitte.map((abschnitt) => (
+          {abgeschlossen && (
+            <p className="text-xs text-slate-500">
+              {t('gespraech.abgeschlossenAm', { datum: formatDatum(gespraech.completedAt) })}
+            </p>
+          )}
+
+          {nichtsAusgefuellt && <p className="text-sm text-slate-400">{t('gespraech.nichtsAusgefuellt')}</p>}
+
+          {sichtbareAbschnitte.map((abschnitt) => (
             <div key={abschnitt.title}>
               <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
                 {abschnitt.title}
@@ -187,8 +263,10 @@ function GespraechsBlock({
                 {abschnitt.questions.map((frage) => (
                   <li key={frage.id}>
                     <p className="mb-1 text-sm text-slate-700">{frage.text}</p>
-                    {frage.hint && <p className="mb-1 text-xs text-slate-400">{frage.hint}</p>}
-                    {eigenes ? (
+                    {frage.hint && !abgeschlossen && (
+                      <p className="mb-1 text-xs text-slate-400">{frage.hint}</p>
+                    )}
+                    {bearbeitbar ? (
                       <Textarea
                         rows={2}
                         value={antworten[frage.id] ?? ''}
@@ -205,24 +283,52 @@ function GespraechsBlock({
             </div>
           ))}
 
-          <div>
-            <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-              {t('gespraech.notizen')}
-            </h4>
-            {eigenes ? (
-              <Textarea rows={4} value={notizen} onChange={(e) => setNotizen(e.target.value)} />
-            ) : (
-              <p className="whitespace-pre-wrap rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
-                {gespraech.notes || <span className="text-slate-400">–</span>}
-              </p>
-            )}
-          </div>
+          {(!abgeschlossen || (gespraech.notes ?? '').trim()) && (
+            <div>
+              <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                {t('gespraech.notizen')}
+              </h4>
+              {bearbeitbar ? (
+                <Textarea rows={4} value={notizen} onChange={(e) => setNotizen(e.target.value)} />
+              ) : (
+                <p className="whitespace-pre-wrap rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                  {gespraech.notes || <span className="text-slate-400">–</span>}
+                </p>
+              )}
+            </div>
+          )}
 
           {(eigenes || istAdmin) && (
-            <div className="flex gap-2">
-              {eigenes && (
-                <Button groesse="sm" onClick={() => speichern.mutate()} laedt={speichern.isPending}>
-                  {t('gespraech.speichern')}
+            <div className="flex flex-wrap gap-2">
+              {bearbeitbar && (
+                <>
+                  <Button
+                    groesse="sm"
+                    onClick={() => {
+                      if (window.confirm(t('gespraech.abschliessenFrage'))) speichern.mutate(true)
+                    }}
+                    laedt={speichern.isPending}
+                  >
+                    {t('gespraech.abschliessen')}
+                  </Button>
+                  <Button
+                    variante="umriss"
+                    groesse="sm"
+                    onClick={() => speichern.mutate(false)}
+                    laedt={speichern.isPending}
+                  >
+                    {t('gespraech.zwischenspeichern')}
+                  </Button>
+                </>
+              )}
+              {eigenes && abgeschlossen && (
+                <Button
+                  variante="umriss"
+                  groesse="sm"
+                  onClick={() => wiederOeffnen.mutate()}
+                  laedt={wiederOeffnen.isPending}
+                >
+                  {t('gespraech.bearbeiten')}
                 </Button>
               )}
               <Button

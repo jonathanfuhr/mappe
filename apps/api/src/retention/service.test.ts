@@ -173,6 +173,113 @@ describe('Fristen berechnen', () => {
   })
 })
 
+/**
+ * Zusagen sind der Sonderfall: Das Verfahren ist abgeschlossen, aber gelöscht
+ * werden darf nichts. Mit dem Arbeitsvertrag wechselt der Zweck, die Unterlagen
+ * gehören in die Personalakte und sind dort aufbewahrungspflichtig.
+ *
+ * Der Schutz muss auf beiden Ebenen greifen. Nur die Bewerbung zu verschonen
+ * reicht nicht: Wird die Person von der Personenfrist eingesammelt, nimmt sie
+ * die Bewerbung per Cascade mit.
+ */
+describe('Zusagen bleiben dauerhaft', () => {
+  it('gibt einer Zusage keine Fälligkeit, auch lange nach dem Abschluss', async () => {
+    await stelleFristenEin()
+    const { bewerbung } = await legeAn({
+      nachname: 'Eingestellt',
+      phase: 'ZUSAGE',
+      abgeschlossenVorMonaten: 24,
+    })
+
+    await berechneFristen()
+
+    const geprueft = await prisma.application.findUniqueOrThrow({ where: { id: bewerbung!.id } })
+    expect(geprueft.purgeDueAt).toBeNull()
+  })
+
+  it('gibt einer Absage weiterhin eine Fälligkeit', async () => {
+    await stelleFristenEin()
+    const { bewerbung } = await legeAn({
+      nachname: 'Abgelehnt',
+      phase: 'ABSAGE',
+      abgeschlossenVorMonaten: 24,
+    })
+
+    await berechneFristen()
+
+    const geprueft = await prisma.application.findUniqueOrThrow({ where: { id: bewerbung!.id } })
+    expect(geprueft.purgeDueAt).not.toBeNull()
+  })
+
+  it('schützt auch die Person hinter der Zusage vor der Personenfrist', async () => {
+    await stelleFristenEin()
+    const { bewerber } = await legeAn({
+      nachname: 'Belegschaft',
+      phase: 'ZUSAGE',
+      abgeschlossenVorMonaten: 24,
+    })
+
+    await berechneFristen()
+
+    const geprueft = await prisma.candidate.findUniqueOrThrow({ where: { id: bewerber.id } })
+    expect(geprueft.purgeDueAt).toBeNull()
+  })
+
+  it('lässt Zusage und Person im Löschlauf unangetastet', async () => {
+    await stelleFristenEin({ modus: 'loeschen' })
+    const { bewerber, bewerbung } = await legeAn({
+      nachname: 'Bleibt',
+      phase: 'ZUSAGE',
+      abgeschlossenVorMonaten: 24,
+    })
+
+    const bericht = await loescheFaellige(null)
+
+    expect(bericht.bewerbungen).toBe(0)
+    expect(bericht.personen).toBe(0)
+    expect(await prisma.application.findUnique({ where: { id: bewerbung!.id } })).not.toBeNull()
+    expect(await prisma.candidate.findUnique({ where: { id: bewerber.id } })).not.toBeNull()
+  })
+
+  it('räumt eine bereits gesetzte Fälligkeit weg, wenn aus einer Absage eine Zusage wird', async () => {
+    await stelleFristenEin()
+    const { bewerbung } = await legeAn({
+      nachname: 'Umentschieden',
+      phase: 'ABSAGE',
+      abgeschlossenVorMonaten: 24,
+    })
+    await berechneFristen()
+    expect(
+      (await prisma.application.findUniqueOrThrow({ where: { id: bewerbung!.id } })).purgeDueAt,
+    ).not.toBeNull()
+
+    await prisma.application.update({ where: { id: bewerbung!.id }, data: { stage: 'ZUSAGE' } })
+    await berechneFristen()
+
+    const geprueft = await prisma.application.findUniqueOrThrow({ where: { id: bewerbung!.id } })
+    expect(geprueft.purgeDueAt).toBeNull()
+  })
+
+  it('löscht die Absage, lässt die Zusage derselben Person aber stehen', async () => {
+    await stelleFristenEin({ modus: 'loeschen' })
+    const bewerber = await prisma.candidate.create({
+      data: { lastName: 'Zweifach', email: 'zweifach@example.com' },
+    })
+    const abgelehnt = await prisma.application.create({
+      data: { candidateId: bewerber.id, stage: 'ABSAGE', closedAt: vorMonaten(24) },
+    })
+    const eingestellt = await prisma.application.create({
+      data: { candidateId: bewerber.id, stage: 'ZUSAGE', closedAt: vorMonaten(24) },
+    })
+
+    await loescheFaellige(null)
+
+    expect(await prisma.application.findUnique({ where: { id: abgelehnt.id } })).toBeNull()
+    expect(await prisma.application.findUnique({ where: { id: eingestellt.id } })).not.toBeNull()
+    expect(await prisma.candidate.findUnique({ where: { id: bewerber.id } })).not.toBeNull()
+  })
+})
+
 describe('Übersicht', () => {
   it('zählt fällige, demnächst fällige und zurückgestellte Einträge', async () => {
     await stelleFristenEin()

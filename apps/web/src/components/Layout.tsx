@@ -1,5 +1,6 @@
 import clsx from 'clsx'
 import {
+  BadgeCheck,
   Briefcase,
   FolderOpen,
   Inbox,
@@ -49,6 +50,12 @@ const hauptNavigation: NavEintrag[] = [
     pfad: '/posteingang',
     label: t('navigation.posteingang'),
     icon: <Inbox className="h-4 w-4" />,
+    rollen: ['ADMIN', 'RECRUITER'],
+  },
+  {
+    pfad: '/zusagen',
+    label: t('navigation.zusagen'),
+    icon: <BadgeCheck className="h-4 w-4" />,
     rollen: ['ADMIN', 'RECRUITER'],
   },
 ]

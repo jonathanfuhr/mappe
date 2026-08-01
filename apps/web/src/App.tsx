@@ -16,6 +16,7 @@ import { ProfilPage } from './pages/ProfilPage'
 import { StellenPage } from './pages/StellenPage'
 import { VorlagenPage } from './pages/VorlagenPage'
 import { UebersichtPage } from './pages/UebersichtPage'
+import { ZusagenPage } from './pages/ZusagenPage'
 
 /** Sperrt eine Route für Rollen, die dort nichts zu suchen haben. */
 function NurFuer({ rollen, children }: { rollen: Rolle[]; children: JSX.Element }) {
@@ -88,6 +89,14 @@ export function App() {
           element={
             <NurFuer rollen={NUR_ADMIN}>
               <NutzerPage />
+            </NurFuer>
+          }
+        />
+        <Route
+          path="/zusagen"
+          element={
+            <NurFuer rollen={NUR_TEAM}>
+              <ZusagenPage />
             </NurFuer>
           }
         />

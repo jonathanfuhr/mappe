@@ -19,8 +19,28 @@ import { getSetting } from '../settings/service'
  * ist der Talent-Pool-Fall.
  */
 
-/** Phasen, ab denen eine Bewerbung als abgeschlossen gilt. */
-const ABGESCHLOSSEN = ['ZUSAGE', 'ABSAGE', 'ARCHIV'] as const
+/**
+ * Phasen, ab denen die Frist zu laufen beginnt.
+ *
+ * `ZUSAGE` steht hier bewusst **nicht** dabei, obwohl das Verfahren damit
+ * abgeschlossen ist. Kommt der Arbeitsvertrag zustande, wechselt der Zweck der
+ * Daten: aus Bewerberdaten (Auswahlverfahren) werden Beschäftigtendaten
+ * (Durchführung des Arbeitsverhältnisses, Art. 6 Abs. 1 lit. b DSGVO, § 26
+ * Abs. 1 BDSG). Die Unterlagen werden Teil der Personalakte und sind dann
+ * aufbewahrungs*pflichtig* – je nach Unterlage sechs Jahre (§ 257 HGB, § 41
+ * EStG) oder zehn (§ 147 AO). Eine Löschung nach sechs Monaten wäre also genau
+ * verkehrt herum.
+ *
+ * Für Absagen bleiben die sechs Monate richtig: Sie decken die Fristen aus
+ * § 15 Abs. 4 AGG und § 61b ArbGG mit Luft ab.
+ *
+ * Die Wirkung reicht weiter als nur bis zur Bewerbung: Weil die Personenfrist
+ * unten alles zählt, was nicht in dieser Liste steht, hält eine Zusage auch
+ * die *Person* dauerhaft geschützt. Andernfalls würde sie nach sechs Monaten
+ * gelöscht und nähme die Bewerbung per Cascade mit – der Schutz hier wäre
+ * wertlos.
+ */
+const ABGESCHLOSSEN = ['ABSAGE', 'ARCHIV'] as const
 
 export interface FristenStand {
   modus: 'erinnern' | 'loeschen'
@@ -104,10 +124,13 @@ export async function berechneFristen(): Promise<void> {
     })
 
     for (const person of personen) {
-      const hatLaufende = person.applications.some(
+      // Nicht nur laufende Verfahren halten eine Person: Eine Zusage steht
+      // nicht in ABGESCHLOSSEN und schützt sie damit dauerhaft – wer
+      // eingestellt wurde, gehört in die Personalakte, nicht in den Löschlauf.
+      const bleibtGeschuetzt = person.applications.some(
         (a) => !(ABGESCHLOSSEN as readonly string[]).includes(a.stage),
       )
-      if (hatLaufende) {
+      if (bleibtGeschuetzt) {
         if (person.purgeDueAt) {
           await prisma.candidate.update({ where: { id: person.id }, data: { purgeDueAt: null } })
         }
