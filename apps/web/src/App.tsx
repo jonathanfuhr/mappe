@@ -10,6 +10,8 @@ import { BewerbungPage } from './pages/BewerbungPage'
 import { BewerbungenPage } from './pages/BewerbungenPage'
 import { BoardPage } from './pages/BoardPage'
 import { EinstellungenPage } from './pages/EinstellungenPage'
+import { GespraechPage } from './pages/GespraechPage'
+import { LeitfaedenPage } from './pages/LeitfaedenPage'
 import { NutzerPage } from './pages/NutzerPage'
 import { PosteingangPage } from './pages/PosteingangPage'
 import { ProfilPage } from './pages/ProfilPage'
@@ -83,6 +85,9 @@ export function App() {
             </NurFuer>
           }
         />
+        {/* Ohne Rollenschranke: Auch Interviewer führen Gespräche. Was sie
+            sehen dürfen, prüft die API an der Bewerbung dahinter. */}
+        <Route path="/gespraech/:id" element={<GespraechPage />} />
         <Route path="/profil" element={<ProfilPage />} />
         <Route
           path="/nutzer"
@@ -113,6 +118,14 @@ export function App() {
           element={
             <NurFuer rollen={NUR_ADMIN}>
               <VorlagenPage />
+            </NurFuer>
+          }
+        />
+        <Route
+          path="/leitfaeden"
+          element={
+            <NurFuer rollen={NUR_ADMIN}>
+              <LeitfaedenPage />
             </NurFuer>
           }
         />

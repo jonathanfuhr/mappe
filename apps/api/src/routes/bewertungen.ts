@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { assertCanCommentApplication, assertCanViewCandidate } from '../auth/access'
 import { currentUser, requireAuth } from '../auth/middleware'
 import { prisma } from '../db'
+import { ereignis } from '../lib/historie'
 import { badRequest, forbidden, notFound, wrap } from '../lib/errors'
 import { body } from '../lib/validate'
 
@@ -43,6 +44,11 @@ bewertungenRouter.put(
         comment: d.kommentar ?? null,
       },
       include: { user: { select: { id: true, name: true } } },
+    })
+
+    await ereignis(req.params.id, 'BEWERTUNG', me, {
+      sterne: d.sterne,
+      urteil: d.urteil ?? null,
     })
 
     res.json(bewertung)
@@ -101,6 +107,10 @@ notizenRouter.post(
       },
       include: { user: { select: { id: true, name: true } } },
     })
+
+    // Nur Notizen an einer Bewerbung gehören in deren Historie; eine reine
+    // Personennotiz hat keine Bewerbung, an der sie hängen könnte.
+    if (d.bewerbungId) await ereignis(d.bewerbungId, 'NOTIZ', me, { art: d.art })
 
     res.status(201).json(notiz)
   }),

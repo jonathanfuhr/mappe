@@ -2,6 +2,7 @@ import clsx from 'clsx'
 import {
   BadgeCheck,
   Briefcase,
+  ClipboardList,
   FolderOpen,
   Inbox,
   KanbanSquare,
@@ -65,6 +66,12 @@ const verwaltungsNavigation: NavEintrag[] = [
     pfad: '/vorlagen',
     label: t('navigation.vorlagen'),
     icon: <Mail className="h-4 w-4" />,
+    rollen: ['ADMIN'],
+  },
+  {
+    pfad: '/leitfaeden',
+    label: t('navigation.leitfaeden'),
+    icon: <ClipboardList className="h-4 w-4" />,
     rollen: ['ADMIN'],
   },
   {

@@ -65,7 +65,8 @@
     "nutzer": "Nutzer",
     "profil": "Profil",
     "dsgvo": "Aufbewahrung",
-    "zusagen": "Zusagen"
+    "zusagen": "Zusagen",
+    "leitfaeden": "Leitfäden"
   },
   "rollen": {
     "ADMIN": "Admin",
@@ -414,6 +415,48 @@
     "abschliessenFrage": "Gespräch abschließen? Danach lässt es sich nur noch lesen – zum Ändern muss es ausdrücklich wieder geöffnet werden.",
     "inNeuemTab": "In eigenem Tab öffnen",
     "zwischenspeichern": "Zwischenspeichern"
+  },
+  "historie": {
+    "titel": "Historie",
+    "keine": "Noch nichts passiert.",
+    "system": "Automatisch",
+    "ANGELEGT": "Bewerbung angelegt",
+    "PHASE_GEAENDERT": "Phase von {von} auf {nach}",
+    "MAIL_EIN": "Mail empfangen",
+    "MAIL_AUS": "Mail gesendet",
+    "GESPRAECH_ANGELEGT": "Gespräch angelegt",
+    "GESPRAECH_ABGESCHLOSSEN": "Gespräch abgeschlossen",
+    "GESPRAECH_WIEDER_GEOEFFNET": "Gespräch wieder geöffnet",
+    "BEWERTUNG": "Bewertet",
+    "NOTIZ": "Notiz geschrieben",
+    "DOKUMENT": "Dokumente hinzugefügt",
+    "VORSCHLAG_UEBERNOMMEN": "Vorschlag übernommen",
+    "ZUGEWIESEN": "Zugewiesen"
+  },
+  "leitfaeden": {
+    "titel": "Gesprächsleitfäden",
+    "beschreibung": "Fragenkataloge für Bewerbungsgespräche – allgemein oder für eine bestimmte Stelle.",
+    "neu": "Leitfaden anlegen",
+    "bearbeiten": "Leitfaden bearbeiten",
+    "name": "Name",
+    "stelle": "Gilt für",
+    "alleStellen": "Alle Stellen",
+    "aktiv": "Aktiv – steht beim Anlegen eines Gesprächs zur Wahl",
+    "inaktiv": "Abgeschaltet",
+    "abschnitte": "Abschnitte",
+    "abschnittNeu": "Abschnitt hinzufügen",
+    "abschnittTitel": "Überschrift des Abschnitts",
+    "frageNeu": "Frage hinzufügen",
+    "frageText": "Frage",
+    "frageHinweis": "Hinweis für die Führung des Gesprächs (optional)",
+    "keine": "Noch kein Leitfaden angelegt.",
+    "keineBeschreibung": "Ein Gespräch geht auch ohne – dann bleibt nur das Notizfeld.",
+    "loeschen": "Leitfaden löschen",
+    "loeschenFrage": "Diesen Leitfaden löschen? Bereits geführte Gespräche behalten ihre Antworten, verlieren aber die Fragen dazu.",
+    "geseedet": "Mitgeliefert",
+    "fragenZahl": "{n} Fragen",
+    "hinweisUnzulaessig": "Fragen nach Familienplanung, Schwangerschaft, Religion, Parteizugehörigkeit oder Gesundheit sind unzulässig. Der mitgelieferte Leitfaden verzichtet bewusst darauf.",
+    "leerAbschnitt": "Noch keine Frage in diesem Abschnitt."
   },
   "anmeldungBereich": {
     "lokalAktiv": "Anmeldung mit E-Mail und Passwort erlauben",

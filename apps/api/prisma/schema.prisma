@@ -46,6 +46,7 @@ model User {
   jobAccess           JobAssignment[]
   auditLogs           AuditLog[]
   sentMails           MailMessage[]
+  events              ApplicationEvent[]
 
   @@index([role])
 }
@@ -199,6 +200,7 @@ model Application {
   assignments ApplicationAssignment[]
   suggestions ExtractionSuggestion[]
   fieldValues CustomFieldValue[]
+  events      ApplicationEvent[]
 
   @@index([stage])
   @@index([jobId])
@@ -604,6 +606,53 @@ model Setting {
   key       String   @id
   value     Json
   updatedAt DateTime @updatedAt
+}
+
+// Was in der Historie einer Bewerbung stehen kann.
+enum EventType {
+  ANGELEGT
+  PHASE_GEAENDERT
+  MAIL_EIN
+  MAIL_AUS
+  GESPRAECH_ANGELEGT
+  GESPRAECH_ABGESCHLOSSEN
+  GESPRAECH_WIEDER_GEOEFFNET
+  BEWERTUNG
+  NOTIZ
+  DOKUMENT
+  VORSCHLAG_UEBERNOMMEN
+  ZUGEWIESEN
+}
+
+// Die Historie einer Bewerbung – wer wann was getan hat.
+//
+// Getrennt vom AuditLog, und zwar mit Absicht: Das Protokoll ist ein
+// Verwaltungswerkzeug für DSGVO-Vorgänge und für Interviewer gesperrt. Die
+// Historie dagegen gehört zur Bewerbung selbst und wird im Alltag gelesen –
+// sie beantwortet „was ist mit dieser Bewerbung bisher passiert?".
+//
+// Einträge werden nur geschrieben, nie geändert. Es gibt bewusst keine Route
+// zum Bearbeiten oder Löschen: Eine Historie, die sich nachträglich frisieren
+// lässt, taugt bei einer Rückfrage nichts. Mit der Bewerbung verschwindet sie
+// per Cascade – das verlangt die Löschfrist.
+//
+// actorName hält den Namen zum Zeitpunkt des Ereignisses fest. Die Relation
+// auf User bleibt daneben bestehen, wird beim Löschen des Kontos aber auf null
+// gesetzt; ohne den mitgeschriebenen Namen stünde die halbe Historie später
+// anonym da.
+model ApplicationEvent {
+  id            String      @id @default(uuid())
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  userId        String?
+  user          User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  actorName     String      @default("")
+  type          EventType
+  // Einzelheiten je Art: { von, nach } bei der Phase, { betreff } bei Mails …
+  data          Json        @default("{}")
+  createdAt     DateTime    @default(now())
+
+  @@index([applicationId, createdAt])
 }
 
 model AuditLog {

@@ -6,6 +6,7 @@ import { currentUser, requireAuth, requireRecruiter, type AuthUser } from '../au
 import { prisma } from '../db'
 import { audit } from '../lib/audit'
 import { badRequest, notFound, wrap } from '../lib/errors'
+import { ereignis } from '../lib/historie'
 import { body, getQuery, paginationSchema, query, skipTake } from '../lib/validate'
 
 export const bewerbungenRouter = Router()
@@ -199,6 +200,37 @@ bewerbungenRouter.get(
   }),
 )
 
+/**
+ * Die Historie einer Bewerbung.
+ *
+ * Eigener Endpunkt statt eines weiteren `include` in der Detailansicht: Die
+ * Liste wächst mit der Zeit und wird nicht bei jedem Aufruf gebraucht.
+ *
+ * Für Interviewer fallen die Mail-Ereignisse heraus – dieselbe Grenze wie beim
+ * Mailverlauf selbst. Ohne diesen Filter stünde in der Historie, was die
+ * Detailansicht ihnen gerade vorenthält: Betreffzeilen von Absagen und
+ * Gehaltsverhandlungen.
+ */
+bewerbungenRouter.get(
+  '/:id/historie',
+  requireAuth,
+  wrap(async (req, res) => {
+    const me = currentUser(req)
+    await assertCanViewApplication(me, req.params.id)
+
+    const ereignisse = await prisma.applicationEvent.findMany({
+      where: {
+        applicationId: req.params.id,
+        ...(me.role === 'INTERVIEWER' ? { type: { notIn: ['MAIL_EIN', 'MAIL_AUS'] } } : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 500,
+    })
+
+    res.json(ereignisse)
+  }),
+)
+
 const manuellSchema = z.object({
   bewerberId: z.string().uuid().optional(),
   anrede: z.enum(['KEINE', 'FRAU', 'HERR', 'DIVERS']).default('KEINE'),
@@ -273,6 +305,7 @@ bewerbungenRouter.post(
     }
 
     await audit(me.id, 'bewerbung-manuell-angelegt', 'application', bewerbung.id)
+    await ereignis(bewerbung.id, 'ANGELEGT', me, { quelle: d.quelle, manuell: true })
     res.status(201).json(bewerbung)
   }),
 )
@@ -314,6 +347,11 @@ bewerbungenRouter.patch(
       von: vorher.stage,
       nach: phase,
     })
+    // Nur echte Wechsel in die Historie: Beim Verschieben innerhalb einer
+    // Board-Spalte ändert sich die Position, nicht die Phase.
+    if (vorher.stage !== phase) {
+      await ereignis(bewerbung.id, 'PHASE_GEAENDERT', me, { von: vorher.stage, nach: phase })
+    }
     res.json(bewerbung)
   }),
 )

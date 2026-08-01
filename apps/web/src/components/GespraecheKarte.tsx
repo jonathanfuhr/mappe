@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Lock, MessageSquare, Phone, Plus, Trash2, Users, Video } from 'lucide-react'
+import { ExternalLink, Lock, MessageSquare, Phone, Plus, Trash2, Users, Video } from 'lucide-react'
 import { useState } from 'react'
 import { formatDatum, t } from '../i18n'
 import { api, ApiError } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import type { Gespraech, GespraechsAbschnitt, GespraechsArt } from '../lib/typen'
-import { Badge, Button, Hinweis, Karte, Select, Textarea } from './ui'
+import { GespraechsBogen } from './GespraechsBogen'
+import { Badge, Button, Hinweis, Karte, Select } from './ui'
 import { useToast } from './Toast'
 
 interface Vorlage {
@@ -165,51 +166,15 @@ function GespraechsBlock({
   onGeaendert: () => Promise<void>
 }) {
   const toast = useToast()
-  const [antworten, setAntworten] = useState<Record<string, string>>(gespraech.answers ?? {})
-  const [notizen, setNotizen] = useState(gespraech.notes ?? '')
   const [offen, setOffen] = useState(eigenes && !gespraech.completedAt)
 
   const abgeschlossen = Boolean(gespraech.completedAt)
-  // Schreiben darf nur, wem der Bogen gehört – und nur solange er offen ist.
-  const bearbeitbar = eigenes && !abgeschlossen
-
-  const speichern = useMutation({
-    mutationFn: (abschliessen: boolean) =>
-      api.patch(`/gespraeche/${gespraech.id}`, { antworten, notizen, abschliessen }),
-    onSuccess: async () => {
-      await onGeaendert()
-      toast.erfolg(t('app.gespeichert'))
-    },
-    onError: (err: unknown) => toast.fehler(err instanceof ApiError ? err.message : t('app.fehler')),
-  })
-
-  const wiederOeffnen = useMutation({
-    mutationFn: () => api.post(`/gespraeche/${gespraech.id}/wieder-oeffnen`, {}),
-    onSuccess: async () => {
-      await onGeaendert()
-      toast.erfolg(t('gespraech.wiederGeoeffnet'))
-    },
-    onError: (err: unknown) => toast.fehler(err instanceof ApiError ? err.message : t('app.fehler')),
-  })
 
   const loeschen = useMutation({
     mutationFn: () => api.delete(`/gespraeche/${gespraech.id}`),
     onSuccess: onGeaendert,
     onError: (err: unknown) => toast.fehler(err instanceof ApiError ? err.message : t('app.fehler')),
   })
-
-  const abschnitte = gespraech.template?.sections ?? []
-
-  // Im abgeschlossenen Zustand zählt nur, was tatsächlich beantwortet wurde.
-  // Leere Felder sind dann kein Formular mehr, sondern Rauschen.
-  const sichtbareAbschnitte = abgeschlossen
-    ? abschnitte
-        .map((a) => ({ ...a, questions: a.questions.filter((f) => (gespraech.answers?.[f.id] ?? '').trim()) }))
-        .filter((a) => a.questions.length > 0)
-    : abschnitte
-
-  const nichtsAusgefuellt =
-    abgeschlossen && sichtbareAbschnitte.length === 0 && !(gespraech.notes ?? '').trim()
 
   return (
     <li className="rounded-lg border border-slate-200">
@@ -242,105 +207,32 @@ function GespraechsBlock({
 
       {offen && (
         <div className="space-y-4 border-t border-slate-100 px-4 py-4">
-          {bearbeitbar && abschnitte.length > 0 && (
-            <p className="text-xs leading-relaxed text-slate-500">{t('gespraech.unzulaessig')}</p>
-          )}
+          <GespraechsBogen gespraech={gespraech} eigenes={eigenes} onGeaendert={onGeaendert} />
 
-          {abgeschlossen && (
-            <p className="text-xs text-slate-500">
-              {t('gespraech.abgeschlossenAm', { datum: formatDatum(gespraech.completedAt) })}
-            </p>
-          )}
-
-          {nichtsAusgefuellt && <p className="text-sm text-slate-400">{t('gespraech.nichtsAusgefuellt')}</p>}
-
-          {sichtbareAbschnitte.map((abschnitt) => (
-            <div key={abschnitt.title}>
-              <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                {abschnitt.title}
-              </h4>
-              <ul className="space-y-3">
-                {abschnitt.questions.map((frage) => (
-                  <li key={frage.id}>
-                    <p className="mb-1 text-sm text-slate-700">{frage.text}</p>
-                    {frage.hint && !abgeschlossen && (
-                      <p className="mb-1 text-xs text-slate-400">{frage.hint}</p>
-                    )}
-                    {bearbeitbar ? (
-                      <Textarea
-                        rows={2}
-                        value={antworten[frage.id] ?? ''}
-                        onChange={(e) => setAntworten((alt) => ({ ...alt, [frage.id]: e.target.value }))}
-                      />
-                    ) : (
-                      <p className="whitespace-pre-wrap rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
-                        {gespraech.answers?.[frage.id] || <span className="text-slate-400">–</span>}
-                      </p>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-
-          {(!abgeschlossen || (gespraech.notes ?? '').trim()) && (
-            <div>
-              <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                {t('gespraech.notizen')}
-              </h4>
-              {bearbeitbar ? (
-                <Textarea rows={4} value={notizen} onChange={(e) => setNotizen(e.target.value)} />
-              ) : (
-                <p className="whitespace-pre-wrap rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
-                  {gespraech.notes || <span className="text-slate-400">–</span>}
-                </p>
-              )}
-            </div>
-          )}
-
-          {(eigenes || istAdmin) && (
-            <div className="flex flex-wrap gap-2">
-              {bearbeitbar && (
-                <>
-                  <Button
-                    groesse="sm"
-                    onClick={() => {
-                      if (window.confirm(t('gespraech.abschliessenFrage'))) speichern.mutate(true)
-                    }}
-                    laedt={speichern.isPending}
-                  >
-                    {t('gespraech.abschliessen')}
-                  </Button>
-                  <Button
-                    variante="umriss"
-                    groesse="sm"
-                    onClick={() => speichern.mutate(false)}
-                    laedt={speichern.isPending}
-                  >
-                    {t('gespraech.zwischenspeichern')}
-                  </Button>
-                </>
-              )}
-              {eigenes && abgeschlossen && (
-                <Button
-                  variante="umriss"
-                  groesse="sm"
-                  onClick={() => wiederOeffnen.mutate()}
-                  laedt={wiederOeffnen.isPending}
-                >
-                  {t('gespraech.bearbeiten')}
-                </Button>
-              )}
+          <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+            {/* Eigener Tab: Im Gespräch braucht der Fragenkatalog Platz, während
+                nebenan der Lebenslauf offen bleibt. */}
+            <a
+              href={`/gespraech/${gespraech.id}`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-700 hover:underline"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              {t('gespraech.inNeuemTab')}
+            </a>
+            {(eigenes || istAdmin) && (
               <Button
                 variante="still"
                 groesse="sm"
+                className="ml-auto"
                 onClick={() => loeschen.mutate()}
                 laedt={loeschen.isPending}
               >
                 <Trash2 className="h-3.5 w-3.5 text-red-500" />
               </Button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
     </li>

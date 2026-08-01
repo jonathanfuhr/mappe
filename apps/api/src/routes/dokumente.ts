@@ -6,6 +6,7 @@ import { currentUser, requireAuth } from '../auth/middleware'
 import { prisma } from '../db'
 import { env } from '../env'
 import { audit } from '../lib/audit'
+import { ereignis } from '../lib/historie'
 import { badRequest, notFound, wrap } from '../lib/errors'
 import { deleteFile, downloadName, readFileFrom, writeFileTo } from '../lib/storage'
 import { body } from '../lib/validate'
@@ -93,6 +94,12 @@ dokumenteRouter.post(
     await audit(me.id, 'dokumente-hochgeladen', 'application', req.params.id, {
       anzahl: angelegt.length,
     })
+    if (angelegt.length > 0) {
+      await ereignis(req.params.id, 'DOKUMENT', me, {
+        anzahl: angelegt.length,
+        dateien: angelegt.map((d) => d.filename),
+      })
+    }
     res.status(201).json(angelegt)
   }),
 )

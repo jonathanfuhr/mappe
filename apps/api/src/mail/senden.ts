@@ -1,5 +1,6 @@
 import { prisma } from '../db'
 import { audit } from '../lib/audit'
+import { ereignis } from '../lib/historie'
 import { badRequest } from '../lib/errors'
 import { readFileFrom } from '../lib/storage'
 import { bildeVerlaufsKennung } from './parse'
@@ -92,6 +93,10 @@ export async function sendeMail(auftrag: VersandAuftrag, userId: string): Promis
     await audit(userId, 'mail-gesendet', 'application', auftrag.applicationId, {
       an: empfaenger,
       betreff: auftrag.betreff,
+    })
+    await ereignis(auftrag.applicationId, 'MAIL_AUS', userId, {
+      betreff: auftrag.betreff,
+      an: empfaenger,
     })
 
     return { id: datensatz.id }

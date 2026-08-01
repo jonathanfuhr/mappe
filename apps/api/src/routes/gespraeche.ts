@@ -4,6 +4,7 @@ import { assertCanCommentApplication, assertCanViewApplication } from '../auth/a
 import { currentUser, requireAdmin, requireAuth } from '../auth/middleware'
 import { prisma } from '../db'
 import { audit } from '../lib/audit'
+import { ereignis } from '../lib/historie'
 import { badRequest, forbidden, notFound, wrap } from '../lib/errors'
 import { body } from '../lib/validate'
 
@@ -134,7 +135,47 @@ gespraecheRouter.post(
       include: { user: { select: { id: true, name: true } }, template: true },
     })
 
+    await ereignis(d.bewerbungId, 'GESPRAECH_ANGELEGT', me, {
+      art: d.art,
+      leitfaden: gespraech.template?.name ?? null,
+    })
+
     res.status(201).json({ ...gespraech, hinweis: zuFrueh ? 'Die Bewerbung ist noch nicht eingeladen.' : null })
+  }),
+)
+
+/**
+ * Ein einzelnes Gespräch – für die eigene Seite, die in einem zweiten Tab
+ * geöffnet wird. Dort ist Platz für den ganzen Fragenkatalog, während im
+ * ersten Tab der Lebenslauf offen bleibt.
+ *
+ * Mitgeliefert wird nur so viel Kontext, wie der Kopf der Seite braucht:
+ * um wen es geht und auf welche Stelle. Der Mailverlauf hat hier nichts zu
+ * suchen – die Seite steht auch Interviewern offen.
+ */
+gespraecheRouter.get(
+  '/:id',
+  requireAuth,
+  wrap(async (req, res) => {
+    const me = currentUser(req)
+    const gespraech = await prisma.interview.findUnique({
+      where: { id: req.params.id },
+      include: {
+        user: { select: { id: true, name: true } },
+        template: true,
+        application: {
+          select: {
+            id: true,
+            stage: true,
+            candidate: { select: { firstName: true, lastName: true, email: true } },
+            job: { select: { id: true, title: true } },
+          },
+        },
+      },
+    })
+    if (!gespraech) throw notFound('Dieses Gespräch gibt es nicht.')
+    await assertCanViewApplication(me, gespraech.applicationId)
+    res.json(gespraech)
   }),
 )
 
@@ -186,6 +227,10 @@ gespraecheRouter.patch(
       await audit(me.id, 'gespraech-abgeschlossen', 'interview', aktualisiert.id, {
         bewerbungId: aktualisiert.applicationId,
       })
+      await ereignis(aktualisiert.applicationId, 'GESPRAECH_ABGESCHLOSSEN', me, {
+        art: aktualisiert.kind,
+        leitfaden: aktualisiert.template?.name ?? null,
+      })
     }
     res.json(aktualisiert)
   }),
@@ -218,6 +263,9 @@ gespraecheRouter.post(
     })
     await audit(me.id, 'gespraech-wieder-geoeffnet', 'interview', aktualisiert.id, {
       bewerbungId: aktualisiert.applicationId,
+      warAbgeschlossenSeit: gespraech.completedAt,
+    })
+    await ereignis(aktualisiert.applicationId, 'GESPRAECH_WIEDER_GEOEFFNET', me, {
       warAbgeschlossenSeit: gespraech.completedAt,
     })
     res.json(aktualisiert)

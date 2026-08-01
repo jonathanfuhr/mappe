@@ -20,6 +20,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { KategorieBadge, PhasenBadge, QuellenBadge } from '../components/Anzeigen'
 import { BewertungsKarte, NotizenKarte } from '../components/BewertungUndNotizen'
 import { GespraecheKarte } from '../components/GespraecheKarte'
+import { HistorieKarte } from '../components/HistorieKarte'
 import { MailSendenDialog } from '../components/MailSendenDialog'
 import { Seite } from '../components/Layout'
 import { PdfBetrachter } from '../components/PdfBetrachter'
@@ -308,6 +309,8 @@ export function BewerbungPage() {
           />
 
           {bewerbung.mails.length > 0 && <MailVerlauf bewerbung={bewerbung} />}
+
+          <HistorieKarte bewerbungId={bewerbung.id} />
         </div>
       </div>
 

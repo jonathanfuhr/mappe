@@ -7,6 +7,7 @@ import { erkenneAusText, type ErkannteDaten } from '../extract/rules'
 import { ordneStelleZu } from '../extract/stellen'
 import { audit } from '../lib/audit'
 import { writeFileTo } from '../lib/storage'
+import { ereignis } from '../lib/historie'
 import { extrahiereText, istPdf } from '../pdf/text'
 import type { Settings } from '../settings/schema'
 import { getSetting } from '../settings/service'
@@ -114,6 +115,11 @@ async function importiereEine(
       where: { id: bestehende.applicationId },
       data: { updatedAt: new Date() },
     })
+    // Kein Akteur: Der Abruf läuft im Hintergrund, ohne angemeldeten Nutzer.
+    await ereignis(bestehende.applicationId, 'MAIL_EIN', null, {
+      betreff: mail.betreff,
+      von: echterAbsender.email,
+    })
     return 'antwort'
   }
 
@@ -146,6 +152,12 @@ async function importiereEine(
 
   const mailDatensatz = await speichereMail(mail, roh, verlauf, bewerbung.id, emlAblage.storagePath)
   await speichereAnhaenge(mail, mailDatensatz.id, bewerbung.id)
+
+  await ereignis(bewerbung.id, 'ANGELEGT', null, { quelle, betreff: mail.betreff })
+  await ereignis(bewerbung.id, 'MAIL_EIN', null, {
+    betreff: mail.betreff,
+    von: echterAbsender.email,
+  })
 
   await prisma.extractionSuggestion.create({
     data: {
