@@ -494,6 +494,7 @@
     "formatH1": "# Überschrift – Name des Leitfadens",
     "formatH2": "## Überschrift – Abschnitt",
     "formatFrage": "Jede weitere Zeile ist eine Frage, auch als Aufzählung („- Frage“) oder Nummerierung („1. Frage“).",
+    "formatLeerzeichen": "Das Leerzeichen hinter dem Zeichen ist nicht nötig – „#Name“ wird genauso gelesen wie „# Name“.",
     "formatHinweis": "> Zeile – Hinweis zur Frage darüber",
     "formatWarumZitat": "Hinweise stehen als Zitat und nicht mit *, weil * in Markdown ein Listenzeichen ist: Eine eingefügte Fragenliste würde sonst komplett als Hinweise gelesen.",
     "datei": "Textdatei einfügen",

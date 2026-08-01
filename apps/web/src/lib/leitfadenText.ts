@@ -21,9 +21,16 @@ import type { GespraechsAbschnitt } from './typen'
  *     - Auch ein Listenpunkt gilt als Frage
  *     1. Eine Nummerierung ebenso
  *
+ * **Das Leerzeichen hinter dem Zeichen ist nicht nötig.** Echtes Markdown
+ * verlangt es, aber das weiß niemand, der nicht täglich damit arbeitet.
+ * `#Name` als gewöhnliche Frage zu lesen wäre eine Belehrung, keine Hilfe –
+ * gemeint ist offensichtlich eine Überschrift. Die Regel gilt einheitlich für
+ * alle Zeichen: `#Name`, `##Abschnitt`, `>Hinweis` und `-Frage` werden genauso
+ * gelesen wie mit Leerzeichen.
+ *
  * Hinweise stehen als Zitat (`>`) und nicht mit `*`, obwohl das naheliegt:
  * In Markdown ist `*` ein Listenzeichen. Wer eine Fragenliste einfügt, die mit
- * `* ` beginnt – und das ist der häufigste Fall überhaupt –, bekäme sonst
+ * `*` beginnt – und das ist der häufigste Fall überhaupt –, bekäme sonst
  * lauter Hinweise ohne eine einzige Frage.
  */
 
@@ -81,26 +88,23 @@ export function leseLeitfadenText(
     const zeile = rohZeile.trim()
     if (!zeile) continue
 
-    // Überschrift erster Ebene: der Name des Leitfadens. Nur die erste zählt –
-    // eine zweite wäre ein zweiter Leitfaden, und den gibt es hier nicht.
-    const h1 = /^#\s+(.*)$/.exec(zeile)
-    if (h1) {
-      if (name === null) name = h1[1].trim()
-      else neuerAbschnitt(h1[1].trim())
-      continue
-    }
-
-    // Jede tiefere Überschrift ist ein Abschnitt. Auch ### und tiefer, damit
-    // ein kopiertes Dokument mit eigener Gliederung nicht zerfällt.
-    const hn = /^#{2,6}\s+(.*)$/.exec(zeile)
-    if (hn) {
-      const titel = hn[1].trim()
-      if (titel) neuerAbschnitt(titel)
+    // Überschriften. Das Leerzeichen hinter den Rauten ist absichtlich
+    // optional – siehe oben.
+    // Das (?!#) verhindert, dass der Ausdruck bei einer Zeile aus lauter
+    // Rauten zurückfällt und aus „##" eine Überschrift namens „#" macht.
+    const ueberschrift = /^(#{1,6})(?!#)\s*(.*)$/.exec(zeile)
+    if (ueberschrift) {
+      const titel = ueberschrift[2].trim()
+      if (!titel) continue
+      // Nur die erste Überschrift erster Ebene ist der Name; eine zweite wäre
+      // ein zweiter Leitfaden, und den gibt es hier nicht.
+      if (ueberschrift[1].length === 1 && name === null) name = titel
+      else neuerAbschnitt(titel)
       continue
     }
 
     // Zitat: Hinweis zur zuletzt gelesenen Frage.
-    const zitat = /^>\s?(.*)$/.exec(zeile)
+    const zitat = /^>\s*(.*)$/.exec(zeile)
     if (zitat) {
       const abschnitt = aktueller()
       const letzte = abschnitt.questions[abschnitt.questions.length - 1]
@@ -112,8 +116,9 @@ export function leseLeitfadenText(
     }
 
     // Alles Übrige ist eine Frage – ob als Aufzählung, Nummerierung oder
-    // schlichter Absatz geschrieben.
-    const ohneMarker = zeile.replace(/^([-*+]|\d+[.)])\s+/, '').trim()
+    // schlichter Absatz geschrieben. Der Marker darf auch hier ohne
+    // Leerzeichen stehen.
+    const ohneMarker = zeile.replace(/^([-*+]|\d+[.)])\s*/, '').trim()
     if (!ohneMarker) continue
     aktueller().questions.push({ id: holeId(ohneMarker), text: ohneMarker })
   }
