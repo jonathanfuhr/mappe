@@ -14,7 +14,24 @@ export type StorageBucket = 'dokumente' | 'anhaenge' | 'mails' | 'temp'
 
 export async function ensureStorage(): Promise<void> {
   for (const bucket of ['dokumente', 'anhaenge', 'mails', 'temp'] as const) {
-    await fs.mkdir(path.join(env.storageDir, bucket), { recursive: true })
+    try {
+      await fs.mkdir(path.join(env.storageDir, bucket), { recursive: true })
+    } catch (err) {
+      // Der mit Abstand häufigste Startfehler, sobald die Ablage auf ein
+      // Verzeichnis des Servers zeigt statt in ein Docker-Volume: Das
+      // Verzeichnis gehört root, der Container läuft als `node`. Die nackte
+      // Meldung „EACCES: permission denied, mkdir" sagt niemandem, was zu tun
+      // ist – also sagen wir es.
+      if ((err as NodeJS.ErrnoException).code === 'EACCES') {
+        throw new Error(
+          `Die Ablage „${env.storageDir}" ist nicht beschreibbar.\n` +
+            'Mappe läuft im Container als Benutzer 1000. Zeigt DOKUMENTE_DIR auf ein ' +
+            'Verzeichnis des Servers, muss dieses ihm gehören:\n\n' +
+            '  chown -R 1000:1000 <das Verzeichnis aus DOKUMENTE_DIR>\n',
+        )
+      }
+      throw err
+    }
   }
 }
 

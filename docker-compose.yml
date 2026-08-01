@@ -2,6 +2,17 @@
 # Start:  cp .env.example .env  &&  docker compose up -d
 #
 # Läuft auf Synology, Unraid, Mac mini oder jedem anderen Docker-Host.
+#
+# Wo die Daten liegen, entscheidet die .env. Ohne Angabe nimmt Compose die
+# beiden benannten Volumes unten – das ist der bequeme Weg und funktioniert
+# überall. Steht dort ein Pfad, wird daraus ein Bind-Mount auf genau dieses
+# Verzeichnis; beides schreibt sich in derselben Zeile, weil Docker einen
+# absoluten Pfad von einem Volume-Namen selbst unterscheidet.
+#
+# Auf Unraid gehört hier ein Pfad hin. Ein benanntes Volume landet sonst im
+# docker.img, und das hat drei unangenehme Folgen: Das appdata-Backup erfasst
+# die Daten nicht, das Abbild ist knapp bemessen, und läuft es voll, fallen
+# alle anderen Container auf demselben Host mit um.
 
 services:
   db:
@@ -15,7 +26,7 @@ services:
       # ein Umzug auf einen anderen Server bricht die Indizes.
       POSTGRES_INITDB_ARGS: '--encoding=UTF8 --locale=C'
     volumes:
-      - db-daten:/var/lib/postgresql/data
+      - ${DB_DIR:-db-daten}:/var/lib/postgresql/data
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-mappe} -d ${POSTGRES_DB:-mappe}']
       interval: 10s
@@ -46,8 +57,9 @@ services:
     ports:
       - '${MAPPE_PORT:-4300}:3000'
     volumes:
-      - dokumente:/data/storage
+      - ${DOKUMENTE_DIR:-dokumente}:/data/storage
 
+# Werden nur angelegt, wenn DB_DIR bzw. DOKUMENTE_DIR leer bleiben.
 volumes:
   db-daten:
   dokumente:
