@@ -3,7 +3,9 @@ import { audit } from '../lib/audit'
 import { ereignis } from '../lib/historie'
 import { badRequest } from '../lib/errors'
 import { readFileFrom } from '../lib/storage'
+import { getSetting } from '../settings/service'
 import { bildeVerlaufsKennung } from './parse'
+import { setzeEin } from './platzhalter'
 import { holeAdapter } from './registry'
 import { MailFehler } from './types'
 
@@ -25,7 +27,15 @@ export interface VersandAuftrag {
   dokumentIds?: string[]
 }
 
-export async function sendeMail(auftrag: VersandAuftrag, userId: string): Promise<{ id: string }> {
+/**
+ * @param userId Wer verschickt. `null` heißt: automatisch erzeugt – dann steht
+ *   im Absender der neutrale Name aus den Einstellungen statt eines Menschen,
+ *   der gar nichts geschrieben hat.
+ */
+export async function sendeMail(
+  auftrag: VersandAuftrag,
+  userId: string | null,
+): Promise<{ id: string }> {
   const empfaenger = auftrag.an.map((a) => a.trim().toLowerCase()).filter(Boolean)
   if (empfaenger.length === 0) throw badRequest('Es ist kein Empfänger angegeben.')
   if (!auftrag.betreff.trim()) throw badRequest('Der Betreff ist leer.')
@@ -77,6 +87,7 @@ export async function sendeMail(auftrag: VersandAuftrag, userId: string): Promis
 
   try {
     await adapter.sende({
+      absenderName: await baueAbsenderNamen(userId),
       an: empfaenger,
       kopie: auftrag.kopie,
       betreff: auftrag.betreff,
@@ -127,4 +138,40 @@ async function ladeAnhaenge(dokumentIds: string[], applicationId: string) {
       mimeTyp: dokument.mimeType,
     })),
   )
+}
+
+/**
+ * Baut den angezeigten Absendernamen.
+ *
+ * Von Hand verschickt zeigt standardmäßig Bearbeiter und Organisation, damit
+ * der Bewerber weiß, wer sich meldet. Automatisch erzeugte Mails tragen den
+ * neutralen Namen aus den Einstellungen – dort einen Menschen zu nennen wäre
+ * schlicht falsch. Beide Zeilen sind in den Einstellungen frei änderbar.
+ *
+ * Bleibt nach dem Einsetzen nichts übrig – etwa weil weder Organisation noch
+ * Absendername gepflegt sind –, wird gar kein Name gesetzt. Ein Absender wie
+ * „ – " sieht nach einem Fehler aus; dann lieber nur die Adresse.
+ */
+async function baueAbsenderNamen(userId: string | null): Promise<string | undefined> {
+  const allgemein = await getSetting('allgemein')
+
+  const bearbeiter = userId
+    ? await prisma.user.findUnique({ where: { id: userId }, select: { name: true } })
+    : null
+
+  const vorlage = bearbeiter ? allgemein.absenderNameManuell : allgemein.absenderNameAutomatisch
+  if (!vorlage.trim()) return undefined
+
+  const werte: Record<string, string> = {
+    ABSENDER: allgemein.absenderName || allgemein.organisation,
+    ORGANISATION: allgemein.organisation,
+    BEARBEITER: bearbeiter?.name ?? '',
+  }
+
+  const name = setzeEin(vorlage, werte)
+    .text.replace(/\s*[–-]\s*$/, '')
+    .replace(/^\s*[–-]\s*/, '')
+    .trim()
+
+  return name || undefined
 }

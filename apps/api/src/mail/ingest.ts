@@ -12,7 +12,7 @@ import { extrahiereText, istPdf } from '../pdf/text'
 import type { Settings } from '../settings/schema'
 import { getSetting } from '../settings/service'
 import { bildeVerlaufsKennung, parseMime, type GeparsteMail } from './parse'
-import type { MailAdapter, RohMail } from './types'
+import type { Bereich, MailAdapter, RohMail } from './types'
 
 export interface ImportBericht {
   gepruefte: number
@@ -33,6 +33,7 @@ export async function importiereMails(
   rohMails: RohMail[],
   einstellungen: Settings['mail'],
   adapter?: MailAdapter,
+  bereich: Bereich = 'posteingang',
 ): Promise<ImportBericht> {
   const bericht: ImportBericht = {
     gepruefte: rohMails.length,
@@ -46,14 +47,16 @@ export async function importiereMails(
 
   for (const roh of rohMails) {
     try {
-      const ergebnis = await importiereEine(roh, einstellungen, stellen)
+      const ergebnis = await importiereEine(roh, einstellungen, stellen, bereich)
       if (ergebnis === 'neu') bericht.neueBewerbungen++
       else if (ergebnis === 'antwort') bericht.angehaengteAntworten++
       else bericht.uebersprungen++
 
       // Abhol-Regeln erst nach erfolgreichem Import anwenden – sonst wäre
       // eine Nachricht bei einem Fehler weggeräumt, ohne im Tool zu sein.
-      if (ergebnis !== 'doppelt' && adapter) {
+      // Abhol-Regeln gelten nur für den Posteingang: Eine gesendete Nachricht
+      // als gelesen zu markieren oder wegzuschieben wäre sinnlos bis schädlich.
+      if (ergebnis !== 'doppelt' && adapter && bereich === 'posteingang') {
         await wendeAbholRegelnAn(adapter, roh.providerMessageId, einstellungen)
       }
     } catch (err) {
@@ -66,12 +69,15 @@ export async function importiereMails(
   return bericht
 }
 
-type ImportErgebnis = 'neu' | 'antwort' | 'doppelt'
+// 'uebersprungen': gültig, aber ohne Anknüpfungspunkt – etwa eine gesendete
+// Nachricht, zu der es keine Bewerbung gibt.
+type ImportErgebnis = 'neu' | 'antwort' | 'doppelt' | 'uebersprungen'
 
 async function importiereEine(
   roh: RohMail,
   einstellungen: Settings['mail'],
   stellen: Prisma.JobGetPayload<object>[],
+  bereich: Bereich = 'posteingang',
 ): Promise<ImportErgebnis> {
   // Schon importiert? Dann nichts tun. Der Delta-Sync kann eine Nachricht
   // erneut liefern, etwa wenn sie im Postfach als gelesen markiert wurde.
@@ -95,6 +101,10 @@ async function importiereEine(
       select: { id: true },
     })
     if (doppelt) return 'doppelt'
+  }
+
+  if (bereich === 'gesendet') {
+    return importiereGesendete(mail, roh, einstellungen)
   }
 
   const verlauf = bildeVerlaufsKennung(mail.betreff, echterAbsender.email)
@@ -304,6 +314,88 @@ async function findeOderLegeBewerberAn(
     },
     select: { id: true },
   })
+}
+
+/**
+ * Eine Nachricht aus dem Gesendet-Ordner.
+ *
+ * Der wichtige Unterschied zum Posteingang: Hieraus entsteht **nie** eine neue
+ * Bewerbung. Eine gesendete Nachricht ist keine Bewerbung – fände sich kein
+ * passender Verlauf und würde trotzdem etwas angelegt, stünde nach dem ersten
+ * Abruf für jede je verschickte Mail eine Karteileiche im Board.
+ *
+ * Die Verlaufskennung wird über den **Empfänger** gebildet, nicht über den
+ * Absender: Absender sind wir selbst, der Bewerber steht in der An-Zeile.
+ */
+async function importiereGesendete(
+  mail: GeparsteMail,
+  roh: RohMail,
+  einstellungen: Settings['mail'],
+): Promise<ImportErgebnis> {
+  const empfaenger = mail.an[0]
+  if (!empfaenger?.email) return 'uebersprungen'
+
+  const verlauf = bildeVerlaufsKennung(mail.betreff, empfaenger.email)
+
+  const bestehende = await prisma.mailMessage.findFirst({
+    where: { conversationId: verlauf, applicationId: { not: null } },
+    orderBy: { createdAt: 'desc' },
+    select: { applicationId: true },
+  })
+  if (!bestehende?.applicationId) return 'uebersprungen'
+
+  // Was Mappe selbst verschickt hat, steht bereits im Verlauf. Über Graph
+  // kommt beim Versand keine Kennung zurück, deshalb greift der Abgleich über
+  // providerMessageId dort nicht – ohne diese zweite Prüfung stünde jede aus
+  // Mappe versandte Mail nach dem nächsten Abruf ein zweites Mal da.
+  const gesendetAb = mail.eingegangenAm ?? new Date()
+  const eigene = await prisma.mailMessage.findFirst({
+    where: {
+      applicationId: bestehende.applicationId,
+      direction: 'AUSGEHEND',
+      subject: mail.betreff,
+      toEmails: { has: empfaenger.email },
+      sentAt: {
+        gte: new Date(gesendetAb.getTime() - 10 * 60 * 1000),
+        lte: new Date(gesendetAb.getTime() + 10 * 60 * 1000),
+      },
+    },
+    select: { id: true },
+  })
+  if (eigene) return 'doppelt'
+
+  const emlAblage = await writeFileTo('mails', `${roh.providerMessageId}.eml`, roh.mime)
+
+  await prisma.mailMessage.create({
+    data: {
+      applicationId: bestehende.applicationId,
+      direction: 'AUSGEHEND',
+      status: 'GESENDET',
+      providerMessageId: roh.providerMessageId,
+      internetMessageId: mail.internetMessageId,
+      conversationId: verlauf,
+      subject: mail.betreff,
+      fromName: mail.von.name,
+      fromEmail: mail.von.email,
+      toEmails: mail.an.map((a) => a.email),
+      ccEmails: mail.kopie.map((a) => a.email),
+      bodyText: mail.textInhalt,
+      bodyHtml: mail.htmlInhalt,
+      emlPath: emlAblage.storagePath,
+      sentAt: mail.eingegangenAm,
+    },
+  })
+
+  // Anhänge bleiben bewusst außen vor: Was wir selbst mitschicken, ist keine
+  // Bewerbungsunterlage und hat unter den Dokumenten nichts zu suchen.
+
+  await ereignis(bestehende.applicationId, 'MAIL_AUS', null, {
+    betreff: mail.betreff,
+    an: mail.an.map((a) => a.email),
+    ausDemPostfach: true,
+  })
+
+  return 'antwort'
 }
 
 async function speichereMail(

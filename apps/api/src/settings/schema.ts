@@ -14,6 +14,20 @@ export const generalSchema = z.object({
   organisation: z.string().trim().max(200).default(''),
   /** Absendername der ausgehenden Mails. */
   absenderName: z.string().trim().max(200).default(''),
+  /**
+   * Was im Absender steht – getrennt nach automatisch und von Hand verschickt.
+   *
+   * Bei einer automatisch erzeugten Mail ist ein persönlicher Name irreführend:
+   * Da hat niemand geschrieben. Verschickt dagegen ein Mensch, hilft es dem
+   * Bewerber zu wissen, wer sich meldet. Beide Zeilen sind frei änderbar und
+   * verstehen dieselben Platzhalter wie die Mail-Vorlagen – üblich sind
+   * {{ABSENDER}}, {{BEARBEITER}} und {{ORGANISATION}}.
+   *
+   * Die Absenderadresse bleibt in beiden Fällen das Bewerbungspostfach; nur
+   * der angezeigte Name wechselt.
+   */
+  absenderNameAutomatisch: z.string().trim().max(200).default('{{ABSENDER}}'),
+  absenderNameManuell: z.string().trim().max(200).default('{{BEARBEITER}} – {{ORGANISATION}}'),
   /** Wird an jede aus einer Vorlage erzeugte Mail angehängt. */
   signatur: z.string().max(4000).default(''),
 })
@@ -33,6 +47,8 @@ export const imapSchema = z.object({
   benutzer: z.string().trim().default(''),
   passwort: z.string().default(''),
   ordner: z.string().trim().default('INBOX'),
+  /** Ordner mit den gesendeten Nachrichten – Namen unterscheiden sich je Server. */
+  gesendetOrdner: z.string().trim().default('Sent'),
   smtpHost: z.string().trim().default(''),
   smtpPort: z.coerce.number().int().min(1).max(65535).default(587),
   smtpSecure: z.boolean().default(false),
@@ -54,6 +70,15 @@ export const mailSchema = z.object({
   graph: graphSchema.default({}),
   imap: imapSchema.default({}),
   gmail: gmailSchema.default({}),
+  /**
+   * Auch den Gesendet-Ordner mitlesen.
+   *
+   * Ohne das fehlt jede Antwort im Verlauf, die jemand direkt im Postfach
+   * geschrieben hat statt in Mappe – und das Team sieht nicht, dass bereits
+   * geantwortet wurde. Aus dem Gesendet-Ordner entsteht nie eine neue
+   * Bewerbung; die Nachrichten hängen sich nur an bestehende Verläufe.
+   */
+  gesendetAbrufen: z.boolean().default(true),
   /** Abhol-Regeln: was nach dem Import mit der Mail im Postfach passiert. */
   regeln: z
     .object({

@@ -8,6 +8,9 @@
  * Anbietern gleich, und das Original lässt sich unverändert als .eml ablegen.
  */
 
+/** Welcher Ordner gelesen wird. */
+export type Bereich = 'posteingang' | 'gesendet'
+
 export interface RohMail {
   /** Kennung beim Anbieter – verhindert doppelten Import. */
   providerMessageId: string
@@ -33,6 +36,12 @@ export interface SyncZustand {
 }
 
 export interface AusgehendeMail {
+  /**
+   * Angezeigter Name des Absenders. Die Adresse bleibt immer das Postfach –
+   * nur der Name wechselt, je nachdem ob ein Mensch oder die Automatik
+   * geschrieben hat.
+   */
+  absenderName?: string
   an: string[]
   kopie?: string[]
   betreff: string
@@ -56,8 +65,15 @@ export interface MailAdapter {
   /** Prüft Zugangsdaten und Berechtigungen, ohne etwas zu verändern. */
   pruefeVerbindung(): Promise<VerbindungsErgebnis>
 
-  /** Holt neue Nachrichten seit dem übergebenen Zustand. */
-  holeNeue(zustand: SyncZustand): Promise<AbrufErgebnis>
+  /**
+   * Holt neue Nachrichten seit dem übergebenen Zustand.
+   *
+   * `bereich` entscheidet, welcher Ordner gelesen wird. Der Gesendet-Ordner
+   * ist nötig, damit auch Antworten im Verlauf stehen, die jemand direkt im
+   * Postfach geschrieben hat statt in Mappe – sonst sieht das Team nicht, dass
+   * bereits geantwortet wurde, und schreibt ein zweites Mal.
+   */
+  holeNeue(zustand: SyncZustand, bereich?: Bereich): Promise<AbrufErgebnis>
 
   /** Abhol-Regel: nach dem Import als gelesen markieren. */
   markiereGelesen(providerMessageId: string): Promise<void>

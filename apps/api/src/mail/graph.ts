@@ -8,6 +8,7 @@ import {
   type RohMail,
   type SyncZustand,
   type VerbindungsErgebnis,
+  type Bereich,
 } from './types'
 
 /**
@@ -106,17 +107,19 @@ export class GraphAdapter implements MailAdapter {
     }
   }
 
-  async holeNeue(zustand: SyncZustand): Promise<AbrufErgebnis> {
+  async holeNeue(zustand: SyncZustand, bereich: Bereich = 'posteingang'): Promise<AbrufErgebnis> {
     // Der erste Lauf legt einen Delta-Link an; danach liefert Graph nur noch,
-    // was sich seither geändert hat.
+    // was sich seither geändert hat. Der Delta-Link gehört zum Ordner, deshalb
+    // führt jeder Bereich seinen eigenen Zustand.
+    const ordner = bereich === 'gesendet' ? 'sentitems' : 'inbox'
     const start =
       zustand.deltaLink ??
-      `${GRAPH}/users/${encodeURIComponent(this.postfach)}/mailFolders/inbox/messages/delta` +
-        `?$select=id,internetMessageId,conversationId,subject,receivedDateTime,isRead&$top=${SEITEN_GROESSE}`
+      `${GRAPH}/users/${encodeURIComponent(this.postfach)}/mailFolders/${ordner}/messages/delta` +
+        `?$select=id,internetMessageId,conversationId,subject,receivedDateTime,sentDateTime,isRead&$top=${SEITEN_GROESSE}`
 
     const antwort = await this.anfrage('', { absoluteUrl: start })
     const seite = (await antwort.json()) as {
-      value?: { id: string; receivedDateTime?: string; '@removed'?: unknown }[]
+      value?: { id: string; receivedDateTime?: string; sentDateTime?: string; '@removed'?: unknown }[]
       '@odata.nextLink'?: string
       '@odata.deltaLink'?: string
     }
@@ -128,7 +131,11 @@ export class GraphAdapter implements MailAdapter {
       try {
         mails.push({
           providerMessageId: eintrag.id,
-          eingegangenAm: eintrag.receivedDateTime ? new Date(eintrag.receivedDateTime) : undefined,
+          eingegangenAm: eintrag.receivedDateTime
+            ? new Date(eintrag.receivedDateTime)
+            : eintrag.sentDateTime
+              ? new Date(eintrag.sentDateTime)
+              : undefined,
           mime: await this.holeMime(eintrag.id),
         })
       } catch (err) {
@@ -189,6 +196,12 @@ export class GraphAdapter implements MailAdapter {
   async sende(mail: AusgehendeMail): Promise<{ providerMessageId?: string }> {
     const nachricht: Record<string, unknown> = {
       subject: mail.betreff,
+      // Nur der angezeigte Name wird gesetzt, die Adresse bleibt das Postfach.
+      // Eine fremde Adresse hier einzutragen verlangte SendAs-Rechte und wäre
+      // gegenüber dem Bewerber auch nicht ehrlich.
+      ...(mail.absenderName
+        ? { from: { emailAddress: { address: this.postfach, name: mail.absenderName } } }
+        : {}),
       body: mail.html
         ? { contentType: 'HTML', content: mail.html }
         : { contentType: 'Text', content: mail.text },

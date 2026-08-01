@@ -7,6 +7,7 @@ import {
   type RohMail,
   type SyncZustand,
   type VerbindungsErgebnis,
+  type Bereich,
 } from './types'
 
 /**
@@ -103,13 +104,14 @@ export class GmailAdapter implements MailAdapter {
     }
   }
 
-  async holeNeue(zustand: SyncZustand): Promise<AbrufErgebnis> {
+  async holeNeue(zustand: SyncZustand, bereich: Bereich = 'posteingang'): Promise<AbrufErgebnis> {
     // Der Delta-Stand liegt im deltaLink-Feld – bei Gmail ist das die historyId.
     const historyId = zustand.deltaLink
+    const label = bereich === 'gesendet' ? 'SENT' : 'INBOX'
 
     if (historyId) {
       try {
-        return await this.holeUeberHistorie(historyId)
+        return await this.holeUeberHistorie(historyId, label)
       } catch (err) {
         // Eine abgelaufene historyId ist kein Fehler, sondern ein Hinweis:
         // Google hält sie nur begrenzt vor. Dann von vorn.
@@ -121,10 +123,10 @@ export class GmailAdapter implements MailAdapter {
       }
     }
 
-    return this.holeNeueste()
+    return this.holeNeueste(label)
   }
 
-  private async holeUeberHistorie(historyId: string): Promise<AbrufErgebnis> {
+  private async holeUeberHistorie(historyId: string, label: string): Promise<AbrufErgebnis> {
     const antwort = await this.anfrage(
       `/history?startHistoryId=${encodeURIComponent(historyId)}&historyTypes=messageAdded&maxResults=100`,
     )
@@ -136,9 +138,8 @@ export class GmailAdapter implements MailAdapter {
     const kennungen: string[] = []
     for (const eintrag of daten.history ?? []) {
       for (const hinzugefuegt of eintrag.messagesAdded ?? []) {
-        // Nur der Posteingang zählt; Entwürfe und Gesendetes sind keine
-        // eingehenden Bewerbungen.
-        if (hinzugefuegt.message.labelIds?.includes('INBOX')) kennungen.push(hinzugefuegt.message.id)
+        // Nur der angefragte Ordner zählt – Entwürfe gehören in keinen Verlauf.
+        if (hinzugefuegt.message.labelIds?.includes(label)) kennungen.push(hinzugefuegt.message.id)
       }
     }
 
@@ -150,8 +151,8 @@ export class GmailAdapter implements MailAdapter {
     }
   }
 
-  private async holeNeueste(): Promise<AbrufErgebnis> {
-    const antwort = await this.anfrage(`/messages?labelIds=INBOX&maxResults=${SEITEN_GROESSE}`)
+  private async holeNeueste(label: string): Promise<AbrufErgebnis> {
+    const antwort = await this.anfrage(`/messages?labelIds=${label}&maxResults=${SEITEN_GROESSE}`)
     const daten = (await antwort.json()) as { messages?: { id: string }[] }
 
     const mails = await this.ladeNachrichten((daten.messages ?? []).map((m) => m.id))
@@ -241,7 +242,9 @@ export class GmailAdapter implements MailAdapter {
 function baueMime(mail: AusgehendeMail, absender: string): Buffer {
   const grenze = `mappe-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e9).toString(36)}`
   const kopfzeilen = [
-    absender ? `From: ${absender}` : null,
+    absender
+      ? `From: ${mail.absenderName ? `${kodiereKopfzeile(mail.absenderName)} <${absender}>` : absender}`
+      : null,
     `To: ${mail.an.join(', ')}`,
     mail.kopie?.length ? `Cc: ${mail.kopie.join(', ')}` : null,
     `Subject: ${kodiereKopfzeile(mail.betreff)}`,

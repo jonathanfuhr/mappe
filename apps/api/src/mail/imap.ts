@@ -9,6 +9,7 @@ import {
   type RohMail,
   type SyncZustand,
   type VerbindungsErgebnis,
+  type Bereich,
 } from './types'
 
 /**
@@ -85,13 +86,17 @@ export class ImapAdapter implements MailAdapter {
     }
   }
 
-  async holeNeue(zustand: SyncZustand): Promise<AbrufErgebnis> {
+  async holeNeue(zustand: SyncZustand, bereich: Bereich = 'posteingang'): Promise<AbrufErgebnis> {
+    const ordner =
+      bereich === 'gesendet'
+        ? this.konfiguration.gesendetOrdner || 'Sent'
+        : this.konfiguration.ordner
     return this.mitVerbindung(async (client) => {
-      const sperre = await client.getMailboxLock(this.konfiguration.ordner)
+      const sperre = await client.getMailboxLock(ordner)
       try {
         const postfach = client.mailbox
         if (typeof postfach !== 'object') {
-          throw new MailFehler(`Der Ordner „${this.konfiguration.ordner}" ließ sich nicht öffnen.`)
+          throw new MailFehler(`Der Ordner „${ordner}" ließ sich nicht öffnen.`)
         }
 
         const uidValidity = String(postfach.uidValidity)
@@ -115,7 +120,7 @@ export class ImapAdapter implements MailAdapter {
 
           mails.push({
             providerMessageId: `${uidValidity}:${nachricht.uid}`,
-            ordnerId: this.konfiguration.ordner,
+            ordnerId: ordner,
             eingegangenAm: nachricht.internalDate ? new Date(nachricht.internalDate) : undefined,
             mime: Buffer.from(nachricht.source),
           })
@@ -189,7 +194,9 @@ export class ImapAdapter implements MailAdapter {
 
     try {
       const ergebnis = await versender.sendMail({
-        from: k.absender || k.benutzer,
+        from: mail.absenderName
+          ? { name: mail.absenderName, address: k.absender || k.benutzer }
+          : k.absender || k.benutzer,
         to: mail.an.join(', '),
         cc: mail.kopie?.length ? mail.kopie.join(', ') : undefined,
         subject: mail.betreff,
