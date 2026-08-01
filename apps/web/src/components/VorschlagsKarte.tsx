@@ -66,6 +66,9 @@ export function VorschlagsKarte({
   const daten = (vorschlag.payload.bewerber ?? {}) as Record<string, unknown>
   const weiterleitung = vorschlag.payload.weiterleitung
   const zuordnung = vorschlag.payload.stelle
+  // Ein Phasenvorschlag zählt nur, solange er von der aktuellen Phase abweicht.
+  const phasenVorschlag = vorschlag.payload.phase?.phase ?? null
+  const phaseAbweichend = Boolean(phasenVorschlag && phasenVorschlag !== bewerbung.stage)
   const bewerber = bewerbung.candidate as unknown as Record<string, unknown>
 
   const abbildung: Record<string, keyof typeof bewerber> = {
@@ -152,13 +155,35 @@ export function VorschlagsKarte({
         )}
       </div>
 
-      {(abweichende.length > 0 || stelleAbweichend) && (
+      {(abweichende.length > 0 || stelleAbweichend || phaseAbweichend) && (
         <div className="mt-4 rounded-lg border border-white/70 bg-white/70 p-4">
           <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
             Vorgeschlagene Änderungen
           </p>
 
           <ul className="space-y-2">
+            {phaseAbweichend && phasenVorschlag && (
+              <li>
+                <Checkbox
+                  label={`${t('bewerbungen.phase')}: ${t(`phasen.${phasenVorschlag}`)}`}
+                  hilfe={
+                    <>
+                      {t('ki.aktuellerWert')}: {t(`phasen.${bewerbung.stage}`)}
+                      {vorschlag.payload.phase?.begruendung
+                        ? ` · ${vorschlag.payload.phase.begruendung}`
+                        : ''}
+                    </>
+                  }
+                  checked={ausgewaehlt.includes('phase')}
+                  onChange={(e) =>
+                    setAusgewaehlt((alt) =>
+                      e.target.checked ? [...alt, 'phase'] : alt.filter((f) => f !== 'phase'),
+                    )
+                  }
+                />
+              </li>
+            )}
+
             {stelleAbweichend && zuordnung && (
               <li>
                 <Checkbox
@@ -224,6 +249,7 @@ export function VorschlagsKarte({
               onClick={() =>
                 setAusgewaehlt([
                   ...(stelleAbweichend ? ['stelle'] : []),
+                  ...(phaseAbweichend ? ['phase'] : []),
                   ...abweichende.map((f) => f.schluessel),
                 ])
               }

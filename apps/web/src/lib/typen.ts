@@ -167,6 +167,8 @@ export interface Vorschlag {
   payload: {
     bewerber?: Record<string, unknown>
     stelle?: { jobId: string | null; sicherheit: number; begruendung: string; initiativ: boolean }
+    /** Von der KI vorgeschlagene Phase – gesetzt wird sie erst durch Bestätigen. */
+    phase?: { phase: Phase | null; sicherheit: number; begruendung: string }
     weiterleitung?: {
       erkannt: boolean
       quelle?: string

@@ -1,8 +1,9 @@
 import { prisma } from '../db'
 import { audit } from '../lib/audit'
+import { ereignis } from '../lib/historie'
 import { badRequest } from '../lib/errors'
 import { getSetting } from '../settings/service'
-import { erkenneBewerbung, extrahiereDaten, fasseZusammen } from './aufgaben'
+import { erkenneBewerbung, extrahiereDaten, fasseZusammen, schlageStatusVor } from './aufgaben'
 
 /**
  * Führt die eingeschalteten KI-Aufgaben für eine Bewerbung aus.
@@ -156,6 +157,7 @@ export async function uebernehmeVorschlag(
   const nutzlast = vorschlag.payload as {
     bewerber?: Record<string, unknown>
     stelle?: { jobId: string | null; initiativ: boolean }
+    phase?: { phase: string | null; sicherheit: number; begruendung: string }
   }
 
   const bewerberDaten: Record<string, unknown> = {}
@@ -181,6 +183,27 @@ export async function uebernehmeVorschlag(
         zuordnung.jobId = nutzlast.stelle.initiativ ? null : nutzlast.stelle.jobId
         zuordnung.speculative = nutzlast.stelle.initiativ
         uebernommen.push('stelle')
+      }
+      continue
+    }
+    if (feld === 'phase') {
+      // Die Phase wandert nicht in die Bewerberdaten, sondern über denselben
+      // Weg wie ein Wechsel von Hand – samt Zeitstempel und Historie.
+      const vorgeschlagen = nutzlast.phase?.phase
+      if (vorgeschlagen) {
+        const vorher = vorschlag.application.stage
+        await prisma.application.update({
+          where: { id: vorschlag.applicationId },
+          data: { stage: vorgeschlagen as never, stageChangedAt: new Date() },
+        })
+        if (vorher !== vorgeschlagen) {
+          await ereignis(vorschlag.applicationId, 'PHASE_GEAENDERT', userId, {
+            von: vorher,
+            nach: vorgeschlagen,
+            durchKi: true,
+          })
+        }
+        uebernommen.push('phase')
       }
       continue
     }
@@ -211,6 +234,10 @@ export async function uebernehmeVorschlag(
     quelle: vorschlag.source,
     felder: uebernommen,
   })
+  await ereignis(vorschlag.applicationId, 'VORSCHLAG_UEBERNOMMEN', userId, {
+    quelle: vorschlag.source,
+    felder: uebernommen,
+  })
 
   return { uebernommen }
 }
@@ -220,5 +247,61 @@ function kurzeUrl(url: string): string {
     return new URL(url).hostname.replace(/^www\./, '')
   } catch {
     return 'Link'
+  }
+}
+
+/**
+ * Schlägt anhand des Mailverlaufs eine Phase vor.
+ *
+ * Läuft nach einer eingegangenen Antwort – das ist der Moment, in dem sich am
+ * Stand einer Bewerbung wirklich etwas ändert. Der Vorschlag landet in
+ * derselben Prüfansicht wie alle anderen und wird erst durch Bestätigen wirksam.
+ *
+ * Ohne Verlauf gibt es nichts zu deuten; bei einer bereits abgeschlossenen
+ * Bewerbung ebenso wenig – eine Zusage nachträglich in „In Prüfung" zu
+ * schieben, wäre keine Hilfe.
+ */
+export async function schlageStatusVorFuer(applicationId: string): Promise<void> {
+  const ki = await getSetting('ki')
+  if (!ki.aktiv || !ki.aufgaben.status) return
+
+  const bewerbung = await prisma.application.findUnique({
+    where: { id: applicationId },
+    select: {
+      stage: true,
+      mails: {
+        orderBy: { createdAt: 'asc' },
+        select: { direction: true, subject: true, bodyText: true, createdAt: true },
+        take: 30,
+      },
+    },
+  })
+  if (!bewerbung) return
+  if (['ZUSAGE', 'ABSAGE', 'ARCHIV'].includes(bewerbung.stage)) return
+  if (bewerbung.mails.length === 0) return
+
+  const verlauf = bewerbung.mails
+    .map((m) => `[${m.direction === 'EINGEHEND' ? 'Bewerber' : 'Wir'}] ${m.subject}\n${m.bodyText}`)
+    .join('\n\n---\n\n')
+
+  try {
+    const { ergebnis, modell } = await schlageStatusVor(verlauf, bewerbung.stage)
+    if (!ergebnis.phase) return
+
+    await prisma.extractionSuggestion.create({
+      data: {
+        applicationId,
+        source: 'KI',
+        model: modell,
+        payload: { phase: ergebnis } as object,
+      },
+    })
+    await prisma.application.update({
+      where: { id: applicationId },
+      data: { needsReview: true },
+    })
+  } catch (err) {
+    // Ein Vorschlag ist Beiwerk – scheitert er, bleibt die Bewerbung, wie sie ist.
+    console.error('[mappe] Statusvorschlag fehlgeschlagen:', err)
   }
 }

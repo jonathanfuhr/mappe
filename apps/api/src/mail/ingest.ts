@@ -1,5 +1,5 @@
 import type { ApplicationSource, Prisma } from '@prisma/client'
-import { analysiereBewerbung } from '../ai/analyse'
+import { analysiereBewerbung, schlageStatusVorFuer } from '../ai/analyse'
 import { prisma } from '../db'
 import { erkennePortal } from '../extract/portale'
 import { parseFormularMail } from '../extract/formular'
@@ -130,6 +130,9 @@ async function importiereEine(
       betreff: mail.betreff,
       von: echterAbsender.email,
     })
+    // Eine Antwort ist der Moment, in dem sich der Stand ändern kann – im
+    // Hintergrund, damit der Abruf nicht auf die KI wartet.
+    planeStatusVorschlag(bestehende.applicationId)
     return 'antwort'
   }
 
@@ -213,6 +216,27 @@ async function importiereEine(
  * Fehler landen im Protokoll und bleiben folgenlos – die Bewerbung ist auch
  * ohne KI vollständig erfasst.
  */
+/**
+ * Statusvorschlag im Hintergrund anstoßen.
+ *
+ * Wie bei der Analyse gilt: Der Abruf darf nicht auf ein Modell warten, das
+ * lokal über Ollama auch mal ein bis zwei Minuten braucht.
+ */
+function planeStatusVorschlag(applicationId: string): void {
+  setImmediate(() => {
+    void (async () => {
+      try {
+        await schlageStatusVorFuer(applicationId)
+      } catch (err) {
+        console.error(
+          `[mappe] Statusvorschlag für ${applicationId} fehlgeschlagen:`,
+          err instanceof Error ? err.message : err,
+        )
+      }
+    })()
+  })
+}
+
 function planeKiAnalyse(applicationId: string): void {
   setImmediate(() => {
     void (async () => {

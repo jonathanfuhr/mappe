@@ -110,6 +110,11 @@ export const aiSchema = z.object({
       extraktion: z.boolean().default(true),
       zusammenfassung: z.boolean().default(true),
       pdfSplit: z.boolean().default(true),
+      /**
+       * Aus dem Mailverlauf eine Phase vorschlagen. Gesetzt wird nie etwas –
+       * der Vorschlag landet wie jeder andere in der Prüfansicht.
+       */
+      status: z.boolean().default(true),
     })
     .default({}),
 })

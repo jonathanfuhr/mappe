@@ -369,3 +369,96 @@ const zuordnungsSchema = z.object({
         .filter((e): e is SeitenZuordnung => e !== null),
     ),
 })
+
+// ---------------------------------------------------------------------------
+// Statusvorschlag
+// ---------------------------------------------------------------------------
+
+const PHASEN_FUER_KI = [
+  'GESICHTET',
+  'IN_PRUEFUNG',
+  'EINGELADEN',
+  'GESPRAECH_GEFUEHRT',
+  'ENTSCHEIDUNG',
+  'ZUSAGE',
+  'ABSAGE',
+] as const
+
+export interface StatusErgebnis {
+  phase: string | null
+  sicherheit: number
+  begruendung: string
+}
+
+/**
+ * Liest den Mailverlauf und schlägt eine Phase vor.
+ *
+ * Ausdrücklich ein **Vorschlag**: Gesetzt wird nichts. Das ist keine
+ * Zurückhaltung um ihrer selbst willen, sondern folgt dem Grundsatz des
+ * Werkzeugs – alles Erkannte ist ein Vorschlag. Ein Modell, das eine höfliche
+ * Absage des Bewerbers für eine Zusage hält, würde sonst still die Phase
+ * umstellen, und niemand sähe, warum.
+ *
+ * Zwei Phasen fehlen in der Liste mit Absicht: `NEU` ist der Ausgangszustand
+ * und nie ein Fortschritt, und `ARCHIV` ist eine Aufräumentscheidung, die
+ * niemand aus einer Mail ableiten kann.
+ */
+export async function schlageStatusVor(
+  verlauf: string,
+  aktuellePhase: string,
+): Promise<{ ergebnis: StatusErgebnis; modell: string }> {
+  const antwort = await frageKi<StatusErgebnis>({
+    systemPrompt: SYSTEM,
+    nutzerPrompt: [
+      'Unten steht der Mailverlauf einer Bewerbung. Schlage die passende Phase vor.',
+      '',
+      `Aktuelle Phase: ${aktuellePhase}`,
+      '',
+      'Mögliche Phasen:',
+      ...PHASEN_FUER_KI.map((p) => `- ${p}`),
+      '',
+      'Regeln:',
+      '- phase nur setzen, wenn der Verlauf sie eindeutig belegt. Im Zweifel null.',
+      '- Bleibt die aktuelle Phase richtig, gib null zurück.',
+      '- Niemals zurück in eine frühere Phase.',
+      '- ZUSAGE oder ABSAGE nur, wenn sie im Verlauf ausgesprochen wurde.',
+      '- sicherheit ist ein Wert zwischen 0 und 1.',
+      '- begruendung in einem kurzen deutschen Satz.',
+      '',
+      'Mailverlauf:',
+      await kuerze(verlauf),
+    ].join('\n'),
+    schemaName: 'statusvorschlag',
+    schema: {
+      type: 'object',
+      properties: {
+        phase: { type: ['string', 'null'] },
+        sicherheit: { type: 'number' },
+        begruendung: { type: 'string' },
+      },
+      required: ['phase', 'sicherheit', 'begruendung'],
+      additionalProperties: false,
+    },
+    maxTokens: 300,
+  })
+
+  const geprueft = statusSchema.parse(antwort.daten)
+
+  // Eine erfundene oder unbekannte Phase darf nicht durchkommen – ebenso wenig
+  // ein Vorschlag, der nur die aktuelle Phase wiederholt.
+  const gueltig =
+    geprueft.phase !== null &&
+    (PHASEN_FUER_KI as readonly string[]).includes(geprueft.phase) &&
+    geprueft.phase !== aktuellePhase
+
+  return {
+    ergebnis: { ...geprueft, phase: gueltig ? geprueft.phase : null },
+    modell: antwort.modell,
+  }
+}
+
+const statusSchema = z.object({
+  phase: z.unknown().transform((w) => (typeof w === 'string' && w.trim() ? w.trim().toUpperCase() : null)),
+  sicherheit: zahlSchema,
+  begruendung: textSchema,
+})
