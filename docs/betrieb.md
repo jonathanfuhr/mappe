@@ -41,6 +41,50 @@ docker compose up -d
 Migrationen laufen beim Start automatisch. Vor einem Sprung über mehrere
 Versionen lohnt sich eine Sicherung.
 
+## Platz beim Bauen
+
+Das Bauen braucht deutlich mehr Platz als der laufende Container – und zwar
+auf der Platte des Docker-Hosts, die sich **alle** Container teilen. Läuft sie
+voll, trifft das nicht nur Mappe: Jede andere Datenbank auf demselben Host kann
+in dem Moment ebenfalls nichts mehr schreiben und meldet einen internen
+Serverfehler. Vor dem Bauen deshalb kurz nachsehen:
+
+```bash
+docker system df          # was belegt ist
+df -h /var/lib/docker     # wie viel noch frei ist
+```
+
+**Faustregel: 4 GB frei.** Zum Vergleich die Größen:
+
+| | |
+| --- | --- |
+| Abhängigkeiten mit Werkzeugen (beim Bauen) | 390 MB |
+| davon übrig für den Betrieb | 300 MB |
+| fertiges Abbild | rund 500 MB |
+
+Dazu kommt der Paket-Zwischenspeicher während der Installation und der
+Bau-Cache von Docker, der zwischen zwei Bauläufen liegen bleibt.
+
+Ist es eng geworden, schafft das hier Luft – nichts davon fasst laufende
+Container oder Volumes an:
+
+```bash
+docker builder prune -af   # Bau-Cache, meist der größte Posten
+docker image prune -af     # Abbilder, die kein Container mehr benutzt
+```
+
+Auf **Unraid** liegt alles in einer Datei fester Größe (`docker.img`, ab Werk
+20 GB). Ist die voll, hilft Aufräumen oder *Einstellungen → Docker → Docker vDisk
+size* vergrößern (Docker-Dienst dafür anhalten).
+
+Wenn es dauerhaft eng bleibt: auf einem anderen Rechner bauen und nur das
+fertige Abbild übertragen.
+
+```bash
+docker save mappe:latest | gzip > mappe.tar.gz     # auf dem Baurechner
+gunzip -c mappe.tar.gz | docker load               # auf dem Server
+```
+
 ## HTTPS
 
 Der Container spricht HTTP auf Port 3000; nach außen ist er über `MAPPE_PORT`
@@ -81,6 +125,8 @@ Bauen des Abbilds braucht es keinerlei Verbindung nach draußen:
 - Jede ausgehende Verbindung steckt in einem abschaltbaren Adapter: Mail
   (Graph, IMAP/SMTP, Gmail), KI und der Microsoft-Login. Sind sie aus – die
   Voreinstellung –, baut Mappe **keine einzige** Verbindung nach außen auf.
+- Auch der Start kommt ohne aus: Die Migrationen spielt die Prisma-CLI aus dem
+  Abbild ein, nicht ein `npx`, das sie sich erst holen müsste.
 
 Nachgemessen: Mit abgeschalteten Adaptern öffnet der Server über die gesamte
 Laufzeit inklusive beider Hintergrundläufe keine Verbindung außer der zur
@@ -127,6 +173,7 @@ Mappe ist genügsam. Ein kleiner Server reicht:
 | CPU | 2 Kerne |
 | Arbeitsspeicher | 1 GB für App und Datenbank |
 | Platte | 10 GB plus Platz für Dokumente |
+| Platte beim Bauen | zusätzlich 4 GB frei (siehe oben) |
 
 Die Textextraktion aus PDFs ist der einzige rechenintensive Teil und läuft
 selten. Wer die KI lokal betreibt, plant den Arbeitsspeicher dafür getrennt
@@ -175,5 +222,14 @@ neu anmelden.
 und müssen neu eingetragen werden. Der alte Schlüssel bringt sie zurück.
 
 **Kein Platz mehr.**
-Dokumente wachsen langsam, aber stetig. Die Aufbewahrungsfristen halten den
-Bestand klein – unter *Aufbewahrung* steht, was fällig ist.
+Zwei verschiedene Fälle, die sich leicht verwechseln lassen:
+
+*Im laufenden Betrieb* wachsen die Dokumente langsam, aber stetig. Die
+Aufbewahrungsfristen halten den Bestand klein – unter *Aufbewahrung* steht, was
+fällig ist.
+
+*Beim Bauen* (`no space left on device`, `ENOSPC`) ist die Platte des
+Docker-Hosts voll, nicht die von Mappe. Der Baulauf bricht ab, und weil alle
+Container sich diese Platte teilen, können auch die anderen in dem Moment nichts
+mehr schreiben. Was hilft, steht unter [Platz beim
+Bauen](#platz-beim-bauen).
