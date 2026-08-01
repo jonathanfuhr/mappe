@@ -106,6 +106,95 @@ describe('Textform lesen', () => {
   })
 })
 
+describe('Ohne Leerzeichen hinter dem Zeichen', () => {
+  // Echtes Markdown verlangt das Leerzeichen. Wer das nicht weiß – und das
+  // sind die meisten –, tippt „#Erstgespräch" und bekam vorher eine Frage
+  // namens „#Erstgespräch" statt einer Überschrift.
+  it('liest Überschriften auch ohne Leerzeichen', () => {
+    const { name, abschnitte } = leseLeitfadenText(
+      ['#Erstgespräch', '##Das ist eine Überschrift', 'Das ist eine Frage'].join('\n'),
+    )
+
+    expect(name).toBe('Erstgespräch')
+    expect(abschnitte).toHaveLength(1)
+    expect(abschnitte[0].title).toBe('Das ist eine Überschrift')
+    expect(abschnitte[0].questions.map((f) => f.text)).toEqual(['Das ist eine Frage'])
+  })
+
+  it('liest den Hinweis auch ohne Leerzeichen', () => {
+    const { abschnitte } = leseLeitfadenText(['##A', 'Eine Frage?', '>Ein Hinweis'].join('\n'))
+
+    expect(abschnitte[0].questions[0].hint).toBe('Ein Hinweis')
+  })
+
+  it('liest Aufzählungen auch ohne Leerzeichen', () => {
+    const { abschnitte } = leseLeitfadenText(
+      ['##A', '-Erste Frage', '*Zweite Frage', '+Dritte Frage', '1.Vierte Frage'].join('\n'),
+    )
+
+    expect(abschnitte[0].questions.map((f) => f.text)).toEqual([
+      'Erste Frage',
+      'Zweite Frage',
+      'Dritte Frage',
+      'Vierte Frage',
+    ])
+  })
+
+  it('macht aus einem Stern keinen Hinweis', () => {
+    // Der Stern bleibt ein Listenzeichen. Sonst würde eine eingefügte
+    // Fragenliste komplett als Hinweise gelesen.
+    const { abschnitte } = leseLeitfadenText(['##A', 'Eine Frage?', '*kein Hinweis'].join('\n'))
+
+    expect(abschnitte[0].questions.map((f) => f.text)).toEqual(['Eine Frage?', 'kein Hinweis'])
+    expect(abschnitte[0].questions[0].hint).toBeUndefined()
+  })
+
+  it('liest gemischte Schreibweisen in einem Text', () => {
+    const { name, abschnitte } = leseLeitfadenText(
+      ['# Mit Leerzeichen', '##Ohne', 'Frage eins?', '> Hinweis mit', '###Auch ohne', 'Frage zwei?'].join('\n'),
+    )
+
+    expect(name).toBe('Mit Leerzeichen')
+    expect(abschnitte.map((a) => a.title)).toEqual(['Ohne', 'Auch ohne'])
+    expect(abschnitte[0].questions[0].hint).toBe('Hinweis mit')
+  })
+
+  it('liest genau die Eingabe, an der es zuerst scheiterte', () => {
+    // Wortwörtlich aus dem ersten Versuch: keine Leerzeichen hinter den
+    // Rauten. Vorher wurde daraus eine Liste von fünf Fragen, die mit
+    // „#Erstgespräch" anfing.
+    const { name, abschnitte } = leseLeitfadenText(
+      [
+        '#Erstgespräch',
+        '',
+        '##Das ist eine Überschrift',
+        'Das ist eine frage',
+        'Klappt nicht so wie gedacht',
+        '*sollte ein hinweis sein',
+      ].join('\n'),
+    )
+
+    expect(name).toBe('Erstgespräch')
+    expect(abschnitte).toHaveLength(1)
+    expect(abschnitte[0].title).toBe('Das ist eine Überschrift')
+    expect(abschnitte[0].questions.map((f) => f.text)).toEqual([
+      'Das ist eine frage',
+      'Klappt nicht so wie gedacht',
+      // Der Stern bleibt ein Listenzeichen: Frage, kein Hinweis.
+      'sollte ein hinweis sein',
+    ])
+    expect(abschnitte[0].questions.some((f) => f.hint)).toBe(false)
+  })
+
+  it('lässt eine Raute ohne Text in Ruhe', () => {
+    const { name, abschnitte } = leseLeitfadenText(['#', '##', 'Eine Frage?'].join('\n'))
+
+    expect(name).toBeNull()
+    expect(abschnitte[0].title).toBe(STANDARD_ABSCHNITT)
+    expect(abschnitte[0].questions).toHaveLength(1)
+  })
+})
+
 describe('Kennungen bleiben stabil', () => {
   const bisherige: GespraechsAbschnitt[] = [
     {

@@ -379,6 +379,7 @@ function LeitfadenDialog({
                   <li>{t('leitfaeden.formatFrage')}</li>
                   <li><code>{t('leitfaeden.formatHinweis')}</code></li>
                 </ul>
+                <p className="mt-2 font-medium text-slate-600">{t('leitfaeden.formatLeerzeichen')}</p>
                 <p className="mt-2 text-slate-500">{t('leitfaeden.formatWarumZitat')}</p>
               </div>
             </div>
