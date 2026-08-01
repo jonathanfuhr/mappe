@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ClipboardList, Pencil, Plus, Trash2, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import clsx from 'clsx'
+import { ClipboardList, Pencil, Plus, Trash2, Upload, X } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import { Seite, SeitenKopf } from '../components/Layout'
 import { useToast } from '../components/Toast'
 import {
@@ -15,9 +16,11 @@ import {
   LadeZustand,
   LeerZustand,
   Select,
+  Textarea,
 } from '../components/ui'
 import { t } from '../i18n'
 import { api, ApiError } from '../lib/api'
+import { leseLeitfadenText, pruefeGrenzen, schreibeLeitfadenText } from '../lib/leitfadenText'
 import type { GespraechsAbschnitt, Stelle } from '../lib/typen'
 
 /**
@@ -161,6 +164,14 @@ export function LeitfaedenPage() {
   )
 }
 
+/**
+ * Anlegen und Bearbeiten.
+ *
+ * Zwei Wege auf dieselben Daten: die Textform für den Regelfall – ein
+ * Fragenkatalog liegt fast immer schon irgendwo und wird eingefügt – und die
+ * Einzelfelder zum Nachbessern. Der Text ist die Vorgabe, weil Feld für Feld
+ * abzutippen die unangenehmste Art ist, einen Katalog zu erfassen.
+ */
 function LeitfadenDialog({
   offen,
   leitfaden,
@@ -175,34 +186,52 @@ function LeitfadenDialog({
   onGespeichert: () => Promise<void>
 }) {
   const toast = useToast()
+  const [modus, setModus] = useState<'text' | 'felder'>('text')
   const [name, setName] = useState('')
   const [jobId, setJobId] = useState('')
   const [aktiv, setAktiv] = useState(true)
   const [abschnitte, setAbschnitte] = useState<GespraechsAbschnitt[]>([])
+  const [text, setText] = useState('')
 
-  // Beim Öffnen aus dem Datensatz füllen – sonst zeigt der Dialog beim zweiten
-  // Aufruf noch die Eingaben des ersten.
+  // Der Stand beim Öffnen. Daran hängen die Kennungen, die eine unverändert
+  // gebliebene Frage behalten soll.
+  const [ausgangsAbschnitte, setAusgangsAbschnitte] = useState<GespraechsAbschnitt[]>([])
+
   useEffect(() => {
     if (!offen) return
+    const geladen: GespraechsAbschnitt[] = leitfaden?.sections?.length
+      ? JSON.parse(JSON.stringify(leitfaden.sections))
+      : []
     setName(leitfaden?.name ?? '')
     setJobId(leitfaden?.jobId ?? '')
     setAktiv(leitfaden?.active ?? true)
-    setAbschnitte(
-      leitfaden?.sections?.length
-        ? JSON.parse(JSON.stringify(leitfaden.sections))
-        : [{ title: '', questions: [{ id: neueFrageId(), text: '' }] }],
-    )
+    setAbschnitte(geladen.length ? geladen : [{ title: '', questions: [{ id: neueFrageId(), text: '' }] }])
+    setAusgangsAbschnitte(geladen)
+    setText(geladen.length ? schreibeLeitfadenText(leitfaden?.name ?? '', geladen) : '')
+    setModus('text')
   }, [offen, leitfaden])
+
+  // Im Textmodus wird bei jedem Tastendruck neu gelesen – das ist die
+  // Vorschau rechts. Die Kennungen kommen dabei aus dem Ausgangsstand.
+  const gelesen = useMemo(
+    () => leseLeitfadenText(text, ausgangsAbschnitte),
+    [text, ausgangsAbschnitte],
+  )
+
+  const wirksameAbschnitte = modus === 'text' ? gelesen.abschnitte : abschnitte
+  const wirksamerName = (modus === 'text' && gelesen.name ? gelesen.name : name).trim()
+  const fragenZahl = wirksameAbschnitte.reduce((summe, a) => summe + a.questions.length, 0)
+  // Lieber hier auffallen als beim Speichern: Ein abgelehntes Dokument sagt
+  // sonst nur „ungültig", ohne die Stelle zu nennen.
+  const beanstandungen = pruefeGrenzen(wirksamerName, wirksameAbschnitte)
 
   const speichern = useMutation({
     mutationFn: () => {
       const nutzlast = {
-        name: name.trim(),
+        name: wirksamerName,
         jobId: jobId || null,
         active: aktiv,
-        // Leere Abschnitte und Fragen fliegen raus: Ein Katalog mit leeren
-        // Zeilen ist im Gespräch nur störend.
-        sections: abschnitte
+        sections: wirksameAbschnitte
           .map((a) => ({
             title: a.title.trim(),
             questions: a.questions.filter((f) => f.text.trim()).map((f) => ({ ...f, text: f.text.trim() })),
@@ -223,21 +252,41 @@ function LeitfadenDialog({
   const setzeAbschnitt = (index: number, teil: Partial<GespraechsAbschnitt>) =>
     setAbschnitte((alt) => alt.map((a, i) => (i === index ? { ...a, ...teil } : a)))
 
+  const leseDatei = async (datei: File) => {
+    try {
+      const inhalt = await datei.text()
+      // Angehängt statt ersetzt: Wer schon etwas eingefügt hat, verliert es
+      // nicht, weil er eine zweite Datei dazunimmt.
+      setText((alt) => (alt.trim() ? `${alt.trim()}\n\n${inhalt}` : inhalt))
+      setModus('text')
+    } catch {
+      toast.fehler(t('leitfaeden.dateiFehler'))
+    }
+  }
+
   return (
     <Dialog
       offen={offen}
       onSchliessen={onSchliessen}
       titel={leitfaden ? t('leitfaeden.bearbeiten') : t('leitfaeden.neu')}
-      breite="lg"
+      breite="voll"
       fusszeile={
         <>
+          <span className="mr-auto text-xs text-slate-500">
+            {fragenZahl > 0
+              ? t('leitfaeden.fragenErkannt', {
+                  fragen: fragenZahl,
+                  abschnitte: wirksameAbschnitte.length,
+                })
+              : ''}
+          </span>
           <Button variante="umriss" onClick={onSchliessen}>
             {t('app.abbrechen')}
           </Button>
           <Button
             onClick={() => speichern.mutate()}
             laedt={speichern.isPending}
-            disabled={!name.trim()}
+            disabled={!wirksamerName || fragenZahl === 0 || beanstandungen.length > 0}
           >
             {t('app.speichern')}
           </Button>
@@ -248,8 +297,10 @@ function LeitfadenDialog({
         <div className="grid gap-4 sm:grid-cols-2">
           <Input
             label={t('leitfaeden.name')}
-            value={name}
+            value={modus === 'text' && gelesen.name ? gelesen.name : name}
+            hilfe={modus === 'text' && gelesen.name ? t('leitfaeden.nameAusText') : undefined}
             onChange={(e) => setName(e.target.value)}
+            disabled={modus === 'text' && Boolean(gelesen.name)}
             pflicht
           />
           <Select
@@ -268,104 +319,213 @@ function LeitfadenDialog({
 
         <Checkbox checked={aktiv} onChange={(e) => setAktiv(e.target.checked)} label={t('leitfaeden.aktiv')} />
 
-        <div>
-          <div className="mb-2 flex items-center justify-between">
-            <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              {t('leitfaeden.abschnitte')}
-            </h4>
-            <Button
-              variante="umriss"
-              groesse="sm"
-              onClick={() =>
-                setAbschnitte((alt) => [...alt, { title: '', questions: [{ id: neueFrageId(), text: '' }] }])
-              }
-            >
-              <Plus className="h-3.5 w-3.5" />
-              {t('leitfaeden.abschnittNeu')}
-            </Button>
+        <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4">
+          <div className="flex rounded-lg border border-slate-200 p-0.5">
+            {(['text', 'felder'] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => {
+                  // Beim Wechsel den jeweils anderen Stand nachziehen, damit
+                  // nichts verlorengeht, was gerade eingegeben wurde.
+                  if (m === 'felder') setAbschnitte(gelesen.abschnitte)
+                  else setText(schreibeLeitfadenText(wirksamerName, abschnitte))
+                  setModus(m)
+                }}
+                className={clsx(
+                  'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                  modus === m ? 'bg-slate-100 text-slate-900' : 'text-slate-500 hover:text-slate-700',
+                )}
+              >
+                {m === 'text' ? t('leitfaeden.modusText') : t('leitfaeden.modusFelder')}
+              </button>
+            ))}
           </div>
 
-          <div className="space-y-4">
-            {abschnitte.map((abschnitt, ai) => (
-              <div key={ai} className="rounded-lg border border-slate-200 p-3">
-                <div className="mb-3 flex items-end gap-2">
-                  <div className="flex-1">
-                    <Input
-                      label={t('leitfaeden.abschnittTitel')}
-                      value={abschnitt.title}
-                      onChange={(e) => setzeAbschnitt(ai, { title: e.target.value })}
-                    />
+          {modus === 'text' && (
+            <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50">
+              <Upload className="h-3.5 w-3.5" />
+              {t('leitfaeden.datei')}
+              <input
+                type="file"
+                accept=".md,.markdown,.txt,text/plain,text/markdown"
+                className="hidden"
+                onChange={(e) => {
+                  const datei = e.target.files?.[0]
+                  if (datei) void leseDatei(datei)
+                  e.target.value = ''
+                }}
+              />
+            </label>
+          )}
+        </div>
+
+        {modus === 'text' ? (
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="space-y-3">
+              <Textarea
+                label={t('leitfaeden.textFeld')}
+                rows={20}
+                value={text}
+                placeholder={t('leitfaeden.textPlatzhalter')}
+                onChange={(e) => setText(e.target.value)}
+                className="font-mono text-xs"
+              />
+              <div className="rounded-lg bg-slate-50 px-3 py-2.5 text-xs leading-relaxed text-slate-600">
+                <p className="mb-1 font-semibold text-slate-700">{t('leitfaeden.formatTitel')}</p>
+                <ul className="space-y-0.5">
+                  <li><code>{t('leitfaeden.formatH1')}</code></li>
+                  <li><code>{t('leitfaeden.formatH2')}</code></li>
+                  <li>{t('leitfaeden.formatFrage')}</li>
+                  <li><code>{t('leitfaeden.formatHinweis')}</code></li>
+                </ul>
+                <p className="mt-2 text-slate-500">{t('leitfaeden.formatWarumZitat')}</p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <p className="text-sm font-medium text-slate-700">{t('leitfaeden.vorschau')}</p>
+              {gelesen.abschnitte.length === 0 ? (
+                <p className="rounded-lg border border-dashed border-slate-200 px-3 py-8 text-center text-sm text-slate-400">
+                  {t('leitfaeden.vorschauLeer')}
+                </p>
+              ) : (
+                <>
+                  <div className="max-h-[26rem] space-y-4 overflow-y-auto rounded-lg border border-slate-200 p-3">
+                    {gelesen.abschnitte.map((abschnitt, ai) => (
+                      <div key={`${abschnitt.title}-${ai}`}>
+                        <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          {abschnitt.title}
+                        </h4>
+                        <ol className="space-y-1.5">
+                          {abschnitt.questions.map((frage) => (
+                            <li key={frage.id} className="text-sm text-slate-700">
+                              {frage.text}
+                              {frage.hint && (
+                                <span className="block text-xs text-slate-400">{frage.hint}</span>
+                              )}
+                            </li>
+                          ))}
+                        </ol>
+                      </div>
+                    ))}
                   </div>
+                  {beanstandungen.length > 0 && (
+                    <Hinweis ton="warnung">
+                      <ul className="space-y-0.5">
+                        {beanstandungen.map((m) => (
+                          <li key={m}>{m}</li>
+                        ))}
+                      </ul>
+                    </Hinweis>
+                  )}
+                  {leitfaden && beanstandungen.length === 0 && (
+                    <p className="text-xs text-slate-500">{t('leitfaeden.idsStabil')}</p>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div>
+            <div className="mb-2 flex items-center justify-between">
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                {t('leitfaeden.abschnitte')}
+              </h4>
+              <Button
+                variante="umriss"
+                groesse="sm"
+                onClick={() =>
+                  setAbschnitte((alt) => [...alt, { title: '', questions: [{ id: neueFrageId(), text: '' }] }])
+                }
+              >
+                <Plus className="h-3.5 w-3.5" />
+                {t('leitfaeden.abschnittNeu')}
+              </Button>
+            </div>
+
+            <div className="space-y-4">
+              {abschnitte.map((abschnitt, ai) => (
+                <div key={ai} className="rounded-lg border border-slate-200 p-3">
+                  <div className="mb-3 flex items-end gap-2">
+                    <div className="flex-1">
+                      <Input
+                        label={t('leitfaeden.abschnittTitel')}
+                        value={abschnitt.title}
+                        onChange={(e) => setzeAbschnitt(ai, { title: e.target.value })}
+                      />
+                    </div>
+                    <Button
+                      variante="still"
+                      groesse="sm"
+                      onClick={() => setAbschnitte((alt) => alt.filter((_, i) => i !== ai))}
+                    >
+                      <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                    </Button>
+                  </div>
+
+                  {abschnitt.questions.length === 0 && (
+                    <p className="mb-2 text-xs text-slate-400">{t('leitfaeden.leerAbschnitt')}</p>
+                  )}
+
+                  <ul className="space-y-2">
+                    {abschnitt.questions.map((frage, fi) => (
+                      <li key={frage.id} className="flex items-start gap-2">
+                        <div className="flex-1 space-y-1">
+                          <Input
+                            value={frage.text}
+                            placeholder={t('leitfaeden.frageText')}
+                            onChange={(e) =>
+                              setzeAbschnitt(ai, {
+                                questions: abschnitt.questions.map((q, i) =>
+                                  i === fi ? { ...q, text: e.target.value } : q,
+                                ),
+                              })
+                            }
+                          />
+                          <Input
+                            value={frage.hint ?? ''}
+                            placeholder={t('leitfaeden.frageHinweis')}
+                            onChange={(e) =>
+                              setzeAbschnitt(ai, {
+                                questions: abschnitt.questions.map((q, i) =>
+                                  i === fi ? { ...q, hint: e.target.value } : q,
+                                ),
+                              })
+                            }
+                          />
+                        </div>
+                        <Button
+                          variante="still"
+                          groesse="sm"
+                          onClick={() =>
+                            setzeAbschnitt(ai, { questions: abschnitt.questions.filter((_, i) => i !== fi) })
+                          }
+                        >
+                          <X className="h-3.5 w-3.5 text-slate-400" />
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+
                   <Button
                     variante="still"
                     groesse="sm"
-                    onClick={() => setAbschnitte((alt) => alt.filter((_, i) => i !== ai))}
+                    className="mt-2"
+                    onClick={() =>
+                      setzeAbschnitt(ai, {
+                        questions: [...abschnitt.questions, { id: neueFrageId(), text: '' }],
+                      })
+                    }
                   >
-                    <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                    <Plus className="h-3.5 w-3.5" />
+                    {t('leitfaeden.frageNeu')}
                   </Button>
                 </div>
-
-                {abschnitt.questions.length === 0 && (
-                  <p className="mb-2 text-xs text-slate-400">{t('leitfaeden.leerAbschnitt')}</p>
-                )}
-
-                <ul className="space-y-2">
-                  {abschnitt.questions.map((frage, fi) => (
-                    <li key={frage.id} className="flex items-start gap-2">
-                      <div className="flex-1 space-y-1">
-                        <Input
-                          value={frage.text}
-                          placeholder={t('leitfaeden.frageText')}
-                          onChange={(e) =>
-                            setzeAbschnitt(ai, {
-                              questions: abschnitt.questions.map((q, i) =>
-                                i === fi ? { ...q, text: e.target.value } : q,
-                              ),
-                            })
-                          }
-                        />
-                        <Input
-                          value={frage.hint ?? ''}
-                          placeholder={t('leitfaeden.frageHinweis')}
-                          onChange={(e) =>
-                            setzeAbschnitt(ai, {
-                              questions: abschnitt.questions.map((q, i) =>
-                                i === fi ? { ...q, hint: e.target.value } : q,
-                              ),
-                            })
-                          }
-                        />
-                      </div>
-                      <Button
-                        variante="still"
-                        groesse="sm"
-                        onClick={() =>
-                          setzeAbschnitt(ai, { questions: abschnitt.questions.filter((_, i) => i !== fi) })
-                        }
-                      >
-                        <X className="h-3.5 w-3.5 text-slate-400" />
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-
-                <Button
-                  variante="still"
-                  groesse="sm"
-                  className="mt-2"
-                  onClick={() =>
-                    setzeAbschnitt(ai, {
-                      questions: [...abschnitt.questions, { id: neueFrageId(), text: '' }],
-                    })
-                  }
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  {t('leitfaeden.frageNeu')}
-                </Button>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </Dialog>
   )
