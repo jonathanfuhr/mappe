@@ -266,6 +266,18 @@
     "refreshToken": "Refresh-Token",
     "refreshTokenHilfe": "Einmalig über den OAuth-Zustimmungsbildschirm erteilt. Damit läuft der Zugriff ohne weiteren Login."
   },
+  "absender": {
+    "manuell": "Absendername bei Mails, die jemand von Hand verschickt",
+    "manuellHilfe": "Platzhalter erlaubt: {{BEARBEITER}}, {{ORGANISATION}}, {{ABSENDER}}. Die Absenderadresse bleibt immer das Bewerbungspostfach.",
+    "automatisch": "Absendername bei automatisch erzeugten Mails",
+    "automatischHilfe": "Hier sollte kein Mensch stehen – geschrieben hat niemand."
+  },
+  "gesendet": {
+    "abrufen": "Gesendet-Ordner mitlesen",
+    "abrufenHilfe": "Bringt Antworten in den Verlauf, die jemand direkt im Postfach geschrieben hat statt in Mappe. Eine neue Bewerbung entsteht daraus nie.",
+    "ordner": "Name des Gesendet-Ordners",
+    "ordnerHilfe": "Je nach Server „Sent“, „Gesendet“ oder „INBOX.Sent“."
+  },
   "vorlagenArten": {
     "EINGANGSBESTAETIGUNG": "Eingangsbestätigung",
     "EINLADUNG": "Einladung",
@@ -365,6 +377,9 @@
   },
   "aufbewahrung": {
     "titel": "Aufbewahrung",
+    "zusagenHinweis": "Zusagen sind ausgenommen und bleiben dauerhaft erhalten: Kommt der Arbeitsvertrag zustande, werden die Unterlagen Teil der Personalakte und sind dort aufbewahrungspflichtig statt löschpflichtig.",
+    "ungespeichert": "Es liegen ungespeicherte Änderungen vor.",
+    "inEinstellungen": "Fristen in den Einstellungen ändern",
     "beschreibung": "Zwei getrennte Fristen: eine für Bewerbungen, eine für Personen.",
     "erklaerung": "Die Bewerbungsfrist läuft ab Abschluss des Verfahrens. Die Personenfrist greift erst, wenn zu dieser Person keine aktive Bewerbung mehr läuft – so wird niemand mitten im Verfahren gelöscht.",
     "bewerbungAktiv": "Bewerbungen nach Ablauf der Frist löschen",
@@ -415,6 +430,18 @@
     "abschliessenFrage": "Gespräch abschließen? Danach lässt es sich nur noch lesen – zum Ändern muss es ausdrücklich wieder geöffnet werden.",
     "inNeuemTab": "In eigenem Tab öffnen",
     "zwischenspeichern": "Zwischenspeichern"
+  },
+  "benachrichtigungen": {
+    "titel": "Benachrichtigungen",
+    "keine": "Nichts Neues.",
+    "allesGelesen": "Alles als gelesen markieren",
+    "NEUE_BEWERBUNG": "Neue Bewerbung",
+    "UNBEANTWORTET": "Liegt seit {tage} Tagen",
+    "aktivNeue": "Melden, wenn eine Bewerbung eingeht",
+    "aktivUnbeantwortet": "An Bewerbungen erinnern, die zu lange liegen",
+    "tage": "Erinnern nach (Tagen ohne Fortschritt)",
+    "hinweis": "Benachrichtigungen erscheinen nur in der Oberfläche. Mappe verschickt dafür keine Mails.",
+    "empfaengerHinweis": "Admins und Recruiter bekommen die Meldungen. Interviewer nicht – sie sehen ohnehin nur zugewiesene Bewerbungen."
   },
   "historie": {
     "titel": "Historie",

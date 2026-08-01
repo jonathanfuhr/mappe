@@ -119,6 +119,15 @@ export const aiSchema = z.object({
     .default({}),
 })
 
+export const benachrichtigungenSchema = z.object({
+  /** Meldung, sobald eine Bewerbung eingegangen ist. */
+  neueBewerbung: z.boolean().default(true),
+  /** Erinnerung an Bewerbungen, die zu lange unbearbeitet liegen. */
+  unbeantwortet: z.boolean().default(true),
+  /** Ab wie vielen Tagen ohne Fortschritt erinnert wird. */
+  tage: z.coerce.number().int().min(1).max(365).default(14),
+})
+
 export const retentionSchema = z.object({
   /** Frist für die Bewerbung, gerechnet ab Abschluss (Zusage/Absage/Archiv). */
   bewerbungAktiv: z.boolean().default(true),
@@ -154,6 +163,7 @@ export const settingsSchemas = {
   mail: mailSchema,
   ki: aiSchema,
   fristen: retentionSchema,
+  benachrichtigungen: benachrichtigungenSchema,
   anmeldung: loginSchema,
 } as const
 
@@ -164,6 +174,7 @@ export type Settings = {
   mail: z.infer<typeof mailSchema>
   ki: z.infer<typeof aiSchema>
   fristen: z.infer<typeof retentionSchema>
+  benachrichtigungen: z.infer<typeof benachrichtigungenSchema>
   anmeldung: z.infer<typeof loginSchema>
 }
 
@@ -176,5 +187,6 @@ export const SECRET_PATHS: Record<SettingsKey, string[]> = {
   mail: ['graph.clientSecret', 'imap.passwort', 'imap.smtpPasswort', 'gmail.clientSecret', 'gmail.refreshToken'],
   ki: ['apiKey'],
   fristen: [],
+  benachrichtigungen: [],
   anmeldung: ['entra.clientSecret'],
 }

@@ -64,14 +64,15 @@ export async function getSetting<K extends SettingsKey>(key: K): Promise<Setting
 }
 
 export async function getSettings(): Promise<Settings> {
-  const [allgemein, mail, ki, fristen, anmeldung] = await Promise.all([
+  const [allgemein, mail, ki, fristen, benachrichtigungen, anmeldung] = await Promise.all([
     getSetting('allgemein'),
     getSetting('mail'),
     getSetting('ki'),
     getSetting('fristen'),
+    getSetting('benachrichtigungen'),
     getSetting('anmeldung'),
   ])
-  return { allgemein, mail, ki, fristen, anmeldung }
+  return { allgemein, mail, ki, fristen, benachrichtigungen, anmeldung }
 }
 
 /**

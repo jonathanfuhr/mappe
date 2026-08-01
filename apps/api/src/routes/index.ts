@@ -7,6 +7,7 @@ import { prisma } from '../db'
 import { wrap } from '../lib/errors'
 import { mailRouter } from '../mail/routes'
 import { aufbewahrungRouter } from '../retention/routes'
+import { benachrichtigungenRouter } from '../benachrichtigungen/routes'
 import { bewerberRouter } from './bewerber'
 import { bewerbungenRouter } from './bewerbungen'
 import { bewertungenRouter, kommentareRouter, notizenRouter } from './bewertungen'
@@ -30,6 +31,7 @@ apiRouter.use('/vorlagen', vorlagenRouter)
 apiRouter.use('/freifelder', freifelderRouter)
 apiRouter.use('/gespraeche', gespraecheRouter)
 apiRouter.use('/aufbewahrung', aufbewahrungRouter)
+apiRouter.use('/benachrichtigungen', benachrichtigungenRouter)
 apiRouter.use('/ki', kiRouter)
 apiRouter.use('/mail', mailRouter)
 

@@ -7,6 +7,7 @@ import { erkenneAusText, type ErkannteDaten } from '../extract/rules'
 import { ordneStelleZu } from '../extract/stellen'
 import { audit } from '../lib/audit'
 import { writeFileTo } from '../lib/storage'
+import { meldeNeueBewerbung } from '../benachrichtigungen/service'
 import { ereignis } from '../lib/historie'
 import { extrahiereText, istPdf } from '../pdf/text'
 import type { Settings } from '../settings/schema'
@@ -167,6 +168,7 @@ async function importiereEine(
   await speichereAnhaenge(mail, mailDatensatz.id, bewerbung.id)
 
   await ereignis(bewerbung.id, 'ANGELEGT', null, { quelle, betreff: mail.betreff })
+  await meldeNeueBewerbung(bewerbung.id)
   await ereignis(bewerbung.id, 'MAIL_EIN', null, {
     betreff: mail.betreff,
     von: echterAbsender.email,

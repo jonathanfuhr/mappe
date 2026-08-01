@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ShieldCheck, Trash2 } from 'lucide-react'
+import { Settings, ShieldCheck, Trash2 } from 'lucide-react'
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Seite, SeitenKopf } from '../components/Layout'
 import { useToast } from '../components/Toast'
 import {
@@ -109,69 +110,17 @@ export function AufbewahrungPage() {
           <Kennzahl titel={t('aufbewahrung.zurueckgestellt')} wert={stand?.zurueckgestellt ?? 0} />
         </div>
 
-        <Karte titel="Fristen">
-          <div className="max-w-xl space-y-5">
-            <div className="space-y-3">
-              <Checkbox
-                label={t('aufbewahrung.bewerbungAktiv')}
-                checked={wert.bewerbungAktiv}
-                onChange={(e) => setze('bewerbungAktiv', e.target.checked)}
-              />
-              {wert.bewerbungAktiv && (
-                <Input
-                  type="number"
-                  min={1}
-                  max={120}
-                  label={t('aufbewahrung.bewerbungMonate')}
-                  hilfe={t('aufbewahrung.sechsMonateHinweis')}
-                  value={wert.bewerbungMonate}
-                  onChange={(e) => setze('bewerbungMonate', Number(e.target.value))}
-                  className="max-w-[14rem]"
-                />
-              )}
-            </div>
-
-            <div className="space-y-3 border-t border-slate-100 pt-5">
-              <Checkbox
-                label={t('aufbewahrung.personAktiv')}
-                checked={wert.personAktiv}
-                onChange={(e) => setze('personAktiv', e.target.checked)}
-              />
-              {wert.personAktiv && (
-                <Input
-                  type="number"
-                  min={1}
-                  max={120}
-                  label={t('aufbewahrung.personMonate')}
-                  value={wert.personMonate}
-                  onChange={(e) => setze('personMonate', Number(e.target.value))}
-                  className="max-w-[14rem]"
-                />
-              )}
-            </div>
-
-            <div className="border-t border-slate-100 pt-5">
-              <Select
-                label={t('aufbewahrung.modus')}
-                hilfe={t('aufbewahrung.modusHilfe')}
-                value={wert.modus}
-                onChange={(e) => setze('modus', e.target.value as 'erinnern' | 'loeschen')}
-                className="max-w-sm"
-              >
-                <option value="erinnern">{t('aufbewahrung.modusErinnern')}</option>
-                <option value="loeschen">{t('aufbewahrung.modusLoeschen')}</option>
-              </Select>
-            </div>
-          </div>
-
-          <div className="mt-6 flex items-center gap-3">
-            <Button onClick={() => speichern.mutate()} laedt={speichern.isPending} disabled={!geaendert}>
-              {t('app.speichern')}
-            </Button>
-            {geaendert && (
-              <span className="text-sm text-slate-500">Es liegen ungespeicherte Änderungen vor.</span>
-            )}
-          </div>
+        {/* Die Fristen selbst stehen in den Einstellungen – hier bleibt das
+            Operative: was fällig ist und der Löschlauf. */}
+        <Karte titel={t('aufbewahrung.titel')}>
+          <p className="text-sm text-slate-600">{t('aufbewahrung.erklaerung')}</p>
+          <Link
+            to="/einstellungen"
+            className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-brand-700 hover:underline"
+          >
+            <Settings className="h-4 w-4" />
+            {t('aufbewahrung.inEinstellungen')}
+          </Link>
         </Karte>
 
         <Karte

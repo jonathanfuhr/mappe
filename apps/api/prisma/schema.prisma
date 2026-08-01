@@ -47,6 +47,7 @@ model User {
   auditLogs           AuditLog[]
   sentMails           MailMessage[]
   events              ApplicationEvent[]
+  notifications       Notification[]
 
   @@index([role])
 }
@@ -201,6 +202,7 @@ model Application {
   suggestions ExtractionSuggestion[]
   fieldValues CustomFieldValue[]
   events      ApplicationEvent[]
+  notifications Notification[]
 
   @@index([stage])
   @@index([jobId])
@@ -653,6 +655,38 @@ model ApplicationEvent {
   createdAt     DateTime    @default(now())
 
   @@index([applicationId, createdAt])
+}
+
+enum NotificationType {
+  NEUE_BEWERBUNG
+  UNBEANTWORTET
+}
+
+// Eine Benachrichtigung für genau eine Person.
+//
+// Bewusst pro Empfänger ein eigener Datensatz statt einer geteilten Nachricht
+// mit Leseliste: Gelesen ist eine persönliche Eigenschaft, und so verschwindet
+// mit einem gelöschten Konto auch dessen Postfach, ohne fremde Einträge zu
+// berühren.
+//
+// Der Verweis auf die Bewerbung ist eine Cascade: Ist die Bewerbung gelöscht –
+// etwa durch die Frist –, darf keine Benachrichtigung zurückbleiben, die auf
+// Daten zeigt, die es nicht mehr geben darf.
+model Notification {
+  id            String           @id @default(uuid())
+  userId        String
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  applicationId String?
+  application   Application?     @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  type          NotificationType
+  // Vorgerechnete Angaben für die Anzeige, etwa der Name und die Tage.
+  data          Json             @default("{}")
+  readAt        DateTime?
+  createdAt     DateTime         @default(now())
+
+  @@index([userId, readAt])
+  // Verhindert, dass derselbe Anlass bei jedem Lauf erneut auftaucht.
+  @@unique([userId, applicationId, type])
 }
 
 model AuditLog {

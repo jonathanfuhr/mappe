@@ -6,9 +6,11 @@ import { Seite, SeitenKopf } from '../components/Layout'
 import { useToast } from '../components/Toast'
 import { Button, Checkbox, Hinweis, Input, Karte, LadeZustand, Select, Textarea } from '../components/ui'
 import { t } from '../i18n'
+import { BenachrichtigungsEinstellungen } from '../components/BenachrichtigungsEinstellungen'
+import { FristenEinstellungen } from '../components/FristenEinstellungen'
 import { api, ApiError } from '../lib/api'
 
-type Bereich = 'allgemein' | 'mail' | 'ki' | 'fristen' | 'anmeldung'
+type Bereich = 'allgemein' | 'mail' | 'ki' | 'fristen' | 'benachrichtigungen' | 'anmeldung'
 
 interface GesetztKennzeichen {
   _gesetzt: Record<string, boolean>
@@ -18,6 +20,8 @@ const BEREICHE: { schluessel: Bereich; label: string }[] = [
   { schluessel: 'allgemein', label: t('einstellungen.allgemein') },
   { schluessel: 'mail', label: t('einstellungen.mail') },
   { schluessel: 'ki', label: t('einstellungen.ki') },
+  { schluessel: 'fristen', label: t('aufbewahrung.titel') },
+  { schluessel: 'benachrichtigungen', label: t('benachrichtigungen.titel') },
   { schluessel: 'anmeldung', label: t('einstellungen.anmeldungBereich') },
 ]
 
@@ -78,6 +82,8 @@ export function EinstellungenPage() {
       {bereich === 'allgemein' && <AllgemeinBereich />}
       {bereich === 'mail' && <MailBereich />}
       {bereich === 'ki' && <KiBereich />}
+      {bereich === 'fristen' && <FristenEinstellungen />}
+      {bereich === 'benachrichtigungen' && <BenachrichtigungsEinstellungen />}
       {bereich === 'anmeldung' && <AnmeldungBereich />}
     </Seite>
   )
@@ -129,6 +135,8 @@ function SpeichernLeiste({ geaendert, laedt, onSpeichern }: { geaendert: boolean
 interface Allgemein {
   organisation: string
   absenderName: string
+  absenderNameManuell: string
+  absenderNameAutomatisch: string
   signatur: string
 }
 
@@ -148,6 +156,18 @@ function AllgemeinBereich() {
           label={t('einstellungen.absenderName')}
           value={wert.absenderName ?? ''}
           onChange={(e) => setze('absenderName', e.target.value)}
+        />
+        <Input
+          label={t('absender.manuell')}
+          hilfe={t('absender.manuellHilfe')}
+          value={wert.absenderNameManuell ?? ''}
+          onChange={(e) => setze('absenderNameManuell', e.target.value)}
+        />
+        <Input
+          label={t('absender.automatisch')}
+          hilfe={t('absender.automatischHilfe')}
+          value={wert.absenderNameAutomatisch ?? ''}
+          onChange={(e) => setze('absenderNameAutomatisch', e.target.value)}
         />
         <Textarea
           label={t('einstellungen.signatur')}

@@ -1,5 +1,6 @@
 import { env } from '../env'
 import { getSetting } from '../settings/service'
+import { pruefeLiegengebliebene } from '../benachrichtigungen/service'
 import { berechneFristen, loescheFaellige } from './service'
 
 /**
@@ -48,6 +49,16 @@ async function lauf(): Promise<void> {
             `${bericht.dateien} Datei(en) entfernt.`,
         )
       }
+    }
+    // Läuft im selben Takt mit: Beides sind tägliche Aufräumfragen, und ein
+    // zweiter Timer für eine einzelne Abfrage wäre unnötige Maschinerie.
+    // Bewusst nach den Fristen und in eigenem try – eine fehlgeschlagene
+    // Erinnerung darf den Löschlauf nicht mitreißen.
+    try {
+      const angelegt = await pruefeLiegengebliebene()
+      if (angelegt > 0) console.log(`[mappe] ${angelegt} Erinnerung(en) angelegt.`)
+    } catch (err) {
+      console.error('[mappe] Erinnerungen fehlgeschlagen:', err instanceof Error ? err.message : err)
     }
   } catch (err) {
     console.error('[mappe] Fristenprüfung fehlgeschlagen:', err instanceof Error ? err.message : err)
