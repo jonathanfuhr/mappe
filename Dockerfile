@@ -14,6 +14,16 @@
 FROM node:22-alpine AS build
 WORKDIR /app
 
+# openssl muss VOR "npm ci" da sein. Prisma sucht beim Installieren nach der
+# OpenSSL-Version, um die passende Engine zu holen. Auf Alpine kennt es keinen
+# festen Pfad und ruft ersatzweise "openssl version -v" auf. Fehlt das
+# Programm, rät Prisma auf 1.1 und legt die Engine "linux-musl" ab – gebraucht
+# wird auf diesem Abbild aber "linux-musl-openssl-3.0.x". Beim Start fällt das
+# auf und Prisma will die richtige Engine nachladen: ohne Schreibrecht auf
+# node_modules bricht es ab, mit Schreibrecht zöge es sie aus dem Netz. Beides
+# darf nicht sein, also wird hier von vornherein die richtige installiert.
+RUN apk add --no-cache openssl
+
 # Nur die Manifeste kopieren – so bleibt die Installations-Schicht im Cache,
 # solange sich keine Abhängigkeit ändert. Der Paket-Zwischenspeicher fliegt in
 # derselben Schicht wieder raus; in einer späteren wäre er nur unsichtbar, aber
@@ -41,7 +51,10 @@ ENV NODE_ENV=production
 
 # pdfjs braucht keine Systempakete mehr, aber tini hält die Signalbehandlung
 # sauber – sonst kommt SIGTERM nicht bei Node an und der Stopp dauert 10 s.
-RUN apk add --no-cache tini
+# openssl gehört auch hier hinein: die Erkennung läuft bei jedem Start erneut,
+# und sie muss dasselbe Ergebnis liefern wie beim Bau – sonst sucht Prisma eine
+# Engine, die im Abbild nicht liegt.
+RUN apk add --no-cache tini openssl
 
 # Die Manifeste gehören ins Abbild: Node liest an ihnen ab, dass der Code als
 # CommonJS zu laden ist.
