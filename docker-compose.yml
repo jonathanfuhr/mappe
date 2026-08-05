@@ -56,6 +56,13 @@ services:
       TZ: ${TZ:-Europe/Berlin}
     ports:
       - '${MAPPE_PORT:-4300}:3000'
+    # Vorgabe ist Docker's eigener Auflöser – also alles wie gehabt. Ein
+    # anderer Wert wird nötig, wenn der Docker-Host seine Namensauflösung über
+    # ein VPN schickt: Tailscale etwa liefert für manche Namen nur IPv6, und
+    # ein Container ohne IPv6-Weg nach draußen scheitert dann mit ENETUNREACH.
+    # Betroffen war bei uns ausgerechnet der Microsoft-Login – wechselhaft,
+    # weil andere Namen weiterhin IPv4 zurückgaben.
+    dns: ${MAPPE_DNS:-127.0.0.11}
     volumes:
       - ${DOKUMENTE_DIR:-dokumente}:/data/storage
 

@@ -272,6 +272,33 @@ Feldnamen, nie die Werte.
 
 ## Fehlersuche
 
+### „fetch failed" – aber nur bei manchen Diensten
+
+Meldet Mappe beim Microsoft-Login oder beim Mailabruf sporadisch
+`network_error` oder `fetch failed`, während anderes funktioniert, steckt fast
+immer die Namensauflösung dahinter – nicht die Zugangsdaten.
+
+Läuft auf dem Docker-Host ein VPN wie Tailscale, übernimmt dessen Auflöser die
+Namensauflösung des ganzen Rechners. Für manche Namen liefert er dann **nur
+IPv6-Adressen**. Ein Container ohne IPv6-Weg nach draußen scheitert daran mit
+`ENETUNREACH` – und zwar nur bei genau diesen Namen, weshalb es wechselhaft
+aussieht.
+
+Nachweisen lässt es sich in einem Aufruf:
+
+```bash
+docker compose exec app node -e "require('dns').promises.lookup('login.microsoftonline.com',{all:true}).then(a=>console.log('IPv4:',a.filter(x=>x.family===4).length,'IPv6:',a.filter(x=>x.family===6).length))"
+```
+
+Steht dort `IPv4: 0`, ist es dieser Fall. Abhilfe: in der `.env` einen Auflöser
+eintragen, der IPv4 zurückgibt, und neu starten:
+
+```
+MAPPE_DNS=1.1.1.1
+```
+
+
+
 **Der Container startet nicht.**
 `docker compose logs app` zeigt den Grund. Häufig fehlt ein Wert in der `.env`
 – die Meldung nennt ihn beim Namen.
