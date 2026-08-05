@@ -9,6 +9,7 @@ interface Werte {
   neueBewerbung: boolean
   unbeantwortet: boolean
   tage: number
+  perMail: boolean
 }
 
 export function BenachrichtigungsEinstellungen() {
@@ -20,6 +21,14 @@ export function BenachrichtigungsEinstellungen() {
     queryKey: ['einstellungen', 'benachrichtigungen'],
     queryFn: () => api.get<Werte>('/einstellungen/benachrichtigungen'),
   })
+
+  // Ohne angebundenes Postfach kann Mappe nichts verschicken – das gehört
+  // neben den Schalter, nicht in eine Fehlermeldung Tage später.
+  const { data: mailStatus } = useQuery({
+    queryKey: ['mail-status-kurz'],
+    queryFn: () => api.get<{ adapter: string }>('/mail/status').catch(() => ({ adapter: 'aus' })),
+  })
+  const mailAngebunden = (mailStatus?.adapter ?? 'aus') !== 'aus'
 
   const speichern = useMutation({
     mutationFn: () => api.put('/einstellungen/benachrichtigungen', entwurf),
@@ -65,6 +74,18 @@ export function BenachrichtigungsEinstellungen() {
               onChange={(e) => setze('tage', Number(e.target.value))}
               className="max-w-[14rem]"
             />
+          )}
+        </div>
+
+        <div className="space-y-2 border-t border-slate-100 pt-5">
+          <Checkbox
+            label={t('benachrichtigungen.perMail')}
+            hilfe={t('benachrichtigungen.perMailHilfe')}
+            checked={wert.perMail}
+            onChange={(e) => setze('perMail', e.target.checked)}
+          />
+          {wert.perMail && !mailAngebunden && (
+            <Hinweis ton="warnung">{t('benachrichtigungen.perMailOhnePostfach')}</Hinweis>
           )}
         </div>
 

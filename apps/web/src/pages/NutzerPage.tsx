@@ -11,6 +11,7 @@ import {
   Input,
   Karte,
   LadeZustand,
+  Checkbox,
   Select,
 } from '../components/ui'
 import { formatRelativ, t } from '../i18n'
@@ -23,6 +24,7 @@ interface NutzerZeile {
   email: string
   role: Rolle
   active: boolean
+  notifyByMail: boolean
   lastLoginAt: string | null
   createdAt: string
   hatMicrosoftLogin: boolean
@@ -207,6 +209,7 @@ function NutzerDialog({
   const [email, setEmail] = useState('')
   const [rolle, setRolle] = useState<Rolle>('RECRUITER')
   const [passwort, setPasswort] = useState('')
+  const [perMail, setPerMail] = useState(true)
   const [initialisiertFuer, setInitialisiertFuer] = useState<string | null>(null)
 
   // Formular beim Öffnen mit den Werten des Datensatzes füllen.
@@ -216,6 +219,7 @@ function NutzerDialog({
     setName(nutzer?.name ?? '')
     setEmail(nutzer?.email ?? '')
     setRolle(nutzer?.role ?? 'RECRUITER')
+    setPerMail(nutzer?.notifyByMail ?? true)
     setPasswort('')
   }
 
@@ -226,6 +230,7 @@ function NutzerDialog({
           name,
           email,
           role: rolle,
+          notifyByMail: perMail,
           ...(passwort ? { neuesPasswort: passwort } : {}),
         })
       }
@@ -285,6 +290,14 @@ function NutzerDialog({
           autoComplete="new-password"
           hilfe={nutzer ? t('einstellungen.geheimnisLeerHinweis') : t('nutzer.passwortLeerHinweis')}
         />
+        {nutzer && (
+          <Checkbox
+            label={t('benachrichtigungen.eigeneMail')}
+            hilfe={t('nutzer.perMailHilfe')}
+            checked={perMail}
+            onChange={(e) => setPerMail(e.target.checked)}
+          />
+        )}
       </div>
     </Dialog>
   )

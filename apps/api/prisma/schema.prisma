@@ -34,6 +34,10 @@ model User {
   tokenVersion Int      @default(0)
   // Entra-ID (Microsoft-Login) – wird erst bei der ersten SSO-Anmeldung gesetzt
   entraOid     String?  @unique
+  // Benachrichtigungen per Mail. Der Admin setzt den Wert je Nutzer, der
+  // Nutzer selbst kann ihn im Profil ändern – wer keine Mails will, soll sie
+  // abstellen können, ohne jemanden fragen zu müssen.
+  notifyByMail Boolean  @default(true)
   lastLoginAt  DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -682,9 +686,13 @@ model Notification {
   // Vorgerechnete Angaben für die Anzeige, etwa der Name und die Tage.
   data          Json             @default("{}")
   readAt        DateTime?
+  // Gesetzt, sobald diese Meldung in einer Mail enthalten war. Verhindert,
+  // dass derselbe Anlass in jeder Zusammenfassung erneut auftaucht.
+  mailedAt      DateTime?
   createdAt     DateTime         @default(now())
 
   @@index([userId, readAt])
+  @@index([userId, mailedAt])
   // Verhindert, dass derselbe Anlass bei jedem Lauf erneut auftaucht.
   @@unique([userId, applicationId, type])
 }

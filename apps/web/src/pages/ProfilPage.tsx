@@ -4,6 +4,7 @@ import { Seite, SeitenKopf } from '../components/Layout'
 import { useToast } from '../components/Toast'
 import { Badge, Button, Input, Karte } from '../components/ui'
 import { t } from '../i18n'
+import { MeineBenachrichtigungen } from '../components/MeineBenachrichtigungen'
 import { api, ApiError } from '../lib/api'
 import { useAuth } from '../lib/auth'
 
@@ -54,6 +55,10 @@ export function ProfilPage() {
           </div>
           <p className="mt-2 text-sm leading-relaxed text-slate-500">{t(`rollen.${nutzer.role}_hilfe`)}</p>
         </Karte>
+
+      <div className="mt-6">
+        <MeineBenachrichtigungen />
+      </div>
 
         <Karte titel={t('anmeldung.passwortAendern')}>
           <form onSubmit={absenden} className="max-w-sm space-y-4">

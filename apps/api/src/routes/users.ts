@@ -23,12 +23,14 @@ const updateSchema = z.object({
   email: z.string().trim().toLowerCase().email().optional(),
   role: roleSchema.optional(),
   active: z.boolean().optional(),
+  notifyByMail: z.boolean().optional(),
   neuesPasswort: z.string().optional(),
 })
 
 const selectPublic = {
   id: true,
   name: true,
+  notifyByMail: true,
   email: true,
   role: true,
   active: true,
