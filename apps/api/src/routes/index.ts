@@ -10,7 +10,7 @@ import { aufbewahrungRouter } from '../retention/routes'
 import { benachrichtigungenRouter } from '../benachrichtigungen/routes'
 import { bewerberRouter } from './bewerber'
 import { bewerbungenRouter } from './bewerbungen'
-import { bewertungenRouter, kommentareRouter, notizenRouter } from './bewertungen'
+import { bewertungenRouter, notizenRouter } from './bewertungen'
 import { dokumenteRouter } from './dokumente'
 import { stellenRouter } from './stellen'
 import { usersRouter } from './users'
@@ -26,7 +26,6 @@ apiRouter.use('/bewerber', bewerberRouter)
 apiRouter.use('/dokumente', dokumenteRouter)
 apiRouter.use('/bewertungen', bewertungenRouter)
 apiRouter.use('/notizen', notizenRouter)
-apiRouter.use('/kommentare', kommentareRouter)
 apiRouter.use('/vorlagen', vorlagenRouter)
 apiRouter.use('/freifelder', freifelderRouter)
 apiRouter.use('/gespraeche', gespraecheRouter)
