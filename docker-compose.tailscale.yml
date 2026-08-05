@@ -40,7 +40,12 @@ services:
       # Der Anmeldezustand. Ohne ihn meldet sich der Container nach jedem
       # Neustart neu an und taucht als *zweiter* Rechner im Tailnet auf.
       - ${TS_STATE_DIR:-tailscale-state}:/var/lib/tailscale
-      - ./docker/tailscale-serve.json:/config/serve.json:ro
+      # https braucht HTTPS im Tailnet (Admin → DNS → HTTPS Certificates).
+      # Ist das nicht eingeschaltet, kann der Sidecar kein Zertifikat holen und
+      # die Serve-Konfiguration wird stillschweigend verworfen – dann taucht
+      # der Rechner im Tailnet auf, aber es lauscht nichts. `http` ist der Weg
+      # ohne diese Voraussetzung.
+      - ./docker/tailscale-serve-${TS_MODUS:-https}.json:/config/serve.json:ro
     depends_on:
       app:
         condition: service_healthy
