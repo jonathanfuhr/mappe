@@ -8,9 +8,17 @@ import { Button, Checkbox, Hinweis, Input, Karte, LadeZustand, Select, Textarea 
 import { t } from '../i18n'
 import { BenachrichtigungsEinstellungen } from '../components/BenachrichtigungsEinstellungen'
 import { FristenEinstellungen } from '../components/FristenEinstellungen'
+import { ZugriffEinstellungen } from '../components/ZugriffEinstellungen'
 import { api, ApiError } from '../lib/api'
 
-type Bereich = 'allgemein' | 'mail' | 'ki' | 'fristen' | 'benachrichtigungen' | 'anmeldung'
+type Bereich =
+  | 'allgemein'
+  | 'mail'
+  | 'ki'
+  | 'fristen'
+  | 'benachrichtigungen'
+  | 'zugriff'
+  | 'anmeldung'
 
 interface GesetztKennzeichen {
   _gesetzt: Record<string, boolean>
@@ -22,6 +30,7 @@ const BEREICHE: { schluessel: Bereich; label: string }[] = [
   { schluessel: 'ki', label: t('einstellungen.ki') },
   { schluessel: 'fristen', label: t('aufbewahrung.titel') },
   { schluessel: 'benachrichtigungen', label: t('benachrichtigungen.titel') },
+  { schluessel: 'zugriff', label: t('zugriff.titel') },
   { schluessel: 'anmeldung', label: t('einstellungen.anmeldungBereich') },
 ]
 
@@ -84,6 +93,7 @@ export function EinstellungenPage() {
       {bereich === 'ki' && <KiBereich />}
       {bereich === 'fristen' && <FristenEinstellungen />}
       {bereich === 'benachrichtigungen' && <BenachrichtigungsEinstellungen />}
+      {bereich === 'zugriff' && <ZugriffEinstellungen />}
       {bereich === 'anmeldung' && <AnmeldungBereich />}
     </Seite>
   )
