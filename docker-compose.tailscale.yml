@@ -34,7 +34,12 @@ services:
       # noch NET_ADMIN. Für den Zugriff *auf* Mappe reicht das vollständig, weil
       # der eingehende Verkehr über die Serve-Konfiguration läuft.
       TS_USERSPACE: 'true'
-      TS_SERVE_CONFIG: /config/serve.json
+      # Bewusst mit einem Bindestrich statt `:-`: Eine *leer* gesetzte
+      # Variable bleibt leer, statt auf die Vorgabe zurückzufallen. Genau das
+      # braucht der HTTP-Weg – dort wird die Konfiguration einmalig per Befehl
+      # gesetzt, und eine Datei würde sie bei jedem Start wieder überschreiben
+      # („serve proxy: unsetting previous config").
+      TS_SERVE_CONFIG: ${TS_SERVE_CONFIG-/config/serve.json}
       TS_EXTRA_ARGS: ${TS_EXTRA_ARGS:-}
     volumes:
       # Der Anmeldezustand. Ohne ihn meldet sich der Container nach jedem
