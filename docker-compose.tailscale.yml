@@ -1,0 +1,49 @@
+# Mappe mit eigenem Tailscale-Zugang.
+#
+# Start:
+#   docker compose -f docker-compose.yml -f docker-compose.tailscale.yml up -d
+#
+# Warum als eigene Datei und nicht in der Basis: Ohne Tailscale soll Mappe
+# nichts davon mitschleppen. Wer sie nicht braucht, merkt nichts davon.
+#
+# Was das bringt, was ein Tailscale auf dem Server nicht bringt: **Mappe wird
+# ein eigener Rechner im Tailnet.** Läuft Tailscale nur auf dem Host, ist über
+# dessen Adresse der ganze Server erreichbar – jeder Dienst, jeder Port. Wer
+# jemandem den Zugang zu Mappe geben will, gibt ihm damit den Zugang zu allem
+# anderen gleich mit. Als eigener Rechner lässt Mappe sich in den Tailscale-ACLs
+# einzeln freigeben.
+#
+# Die Anwendung selbst bleibt unverändert: Tailscale steht als Proxy davor und
+# reicht an `app` weiter. Damit behält Mappe auch ihren Zugang im lokalen Netz –
+# der Tailscale-Weg kommt daneben, nicht an dessen Stelle.
+#
+# Nötig ist ein Auth-Key aus der Tailscale-Verwaltung. Einzelheiten in
+# docs/tailscale.md.
+
+services:
+  tailscale:
+    image: tailscale/tailscale:latest
+    # Der Name, unter dem Mappe im Tailnet auftaucht – und der in den ACLs
+    # steht. Erreichbar wird sie danach unter https://<name>.<tailnet>.ts.net
+    hostname: ${TS_HOSTNAME:-mappe}
+    restart: unless-stopped
+    environment:
+      TS_AUTHKEY: ${TS_AUTHKEY:?TS_AUTHKEY fehlt in der .env – siehe docs/tailscale.md}
+      TS_STATE_DIR: /var/lib/tailscale
+      # Ohne eigenes Netzwerkgerät: So braucht der Container weder /dev/net/tun
+      # noch NET_ADMIN. Für den Zugriff *auf* Mappe reicht das vollständig, weil
+      # der eingehende Verkehr über die Serve-Konfiguration läuft.
+      TS_USERSPACE: 'true'
+      TS_SERVE_CONFIG: /config/serve.json
+      TS_EXTRA_ARGS: ${TS_EXTRA_ARGS:-}
+    volumes:
+      # Der Anmeldezustand. Ohne ihn meldet sich der Container nach jedem
+      # Neustart neu an und taucht als *zweiter* Rechner im Tailnet auf.
+      - ${TS_STATE_DIR:-tailscale-state}:/var/lib/tailscale
+      - ./docker/tailscale-serve.json:/config/serve.json:ro
+    depends_on:
+      app:
+        condition: service_healthy
+
+volumes:
+  tailscale-state:
