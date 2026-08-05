@@ -67,7 +67,11 @@ export function Benachrichtigungen() {
       {offen && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOffen(false)} aria-hidden />
-          <div className="absolute right-0 z-40 mt-2 w-80 rounded-xl border border-slate-200 bg-white shadow-lg">
+          {/* Nach oben, nicht nach unten: Die Glocke sitzt am Fuß der
+              Seitenleiste. Ein Fenster, das sich von dort nach unten öffnet,
+              steht sofort außerhalb des Bildschirms – man sah praktisch
+              nichts davon. */}
+          <div className="absolute bottom-full right-0 z-40 mb-2 w-80 rounded-xl border border-slate-200 bg-white shadow-lg">
             <div className="flex items-center justify-between border-b border-slate-100 px-4 py-2.5">
               <span className="text-sm font-medium text-slate-800">{t('benachrichtigungen.titel')}</span>
               {ungelesen.length > 0 && (
@@ -80,7 +84,9 @@ export function Benachrichtigungen() {
             {eintraege.length === 0 ? (
               <p className="px-4 py-6 text-center text-sm text-slate-500">{t('benachrichtigungen.keine')}</p>
             ) : (
-              <ul className="max-h-96 divide-y divide-slate-100 overflow-y-auto">
+              // Höhe begrenzt auf den Platz über der Glocke, damit die Liste
+              // oben nicht aus dem Bild wächst.
+              <ul className="max-h-[min(24rem,60vh)] divide-y divide-slate-100 overflow-y-auto">
                 {eintraege.slice(0, 30).map((e) => (
                   <li key={e.id}>
                     <Link
