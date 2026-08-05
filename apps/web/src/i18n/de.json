@@ -376,6 +376,28 @@
     "anzahl": "{n} eingestellt",
     "geschuetzt": "Dauerhaft aufbewahrt"
   },
+  "zugriff": {
+    "titel": "Zugriff",
+    "beschreibung": "Wie Mappe erreichbar ist – im eigenen Netz und von unterwegs.",
+    "aktuelleSitzung": "Diese Sitzung",
+    "ueberTailscale": "Kommt über Tailscale herein ({adresse}).",
+    "ueberLokal": "Kommt aus dem lokalen Netz ({adresse}).",
+    "angemeldetAls": "Im Tailnet angemeldet als {konto}.",
+    "appUrlTitel": "Öffentliche Adresse (APP_URL)",
+    "appUrlPasst": "Passt zur aufgerufenen Adresse.",
+    "appUrlPasstNicht": "Weicht von der Adresse ab, unter der Mappe gerade aufgerufen wird ({host}). Daran hängen die Redirect-URI des Microsoft-Logins und das secure-Flag des Sitzungs-Cookies.",
+    "appUrlLeer": "Nicht gesetzt.",
+    "tailscaleTitel": "Von unterwegs über Tailscale",
+    "tailscaleWarum": "Läuft Tailscale nur auf dem Server, ist über dessen Adresse der ganze Server erreichbar – jeder Dienst, jeder Port. Mappe kann stattdessen ein eigener Rechner im Tailnet werden und lässt sich dort einzeln freigeben.",
+    "tailscaleOptional": "Rein optional: Ohne die zusätzliche Compose-Datei läuft Mappe wie bisher, ganz ohne Tailscale.",
+    "tailscaleSchritte": "Einrichtung in drei Schritten",
+    "schritt1": "Auth-Key in der Tailscale-Verwaltung erzeugen (Settings → Keys), reusable und nicht ephemeral.",
+    "schritt2": "In die .env eintragen: TS_AUTHKEY, TS_HOSTNAME und TS_STATE_DIR.",
+    "schritt3": "Mit der zusätzlichen Datei starten:",
+    "warumKeinSchalter": "Warum es hier keinen Schalter gibt",
+    "warumKeinSchalterText": "Tailscale läuft in einem eigenen Container. Um ihn aus Mappe heraus zu starten, bräuchte die Anwendung Zugriff auf den Docker-Socket – und wer Mappe dann übernimmt, hätte damit den ganzen Server. Ein Schalter hier wäre bequem und genau deshalb eine schlechte Idee.",
+    "doku": "Ausführlich in docs/tailscale.md – mit ACL-Beispiel, damit ein Konto nur Mappe erreicht."
+  },
   "aufbewahrung": {
     "titel": "Aufbewahrung",
     "zusagenHinweis": "Zusagen sind ausgenommen und bleiben dauerhaft erhalten: Kommt der Arbeitsvertrag zustande, werden die Unterlagen Teil der Personalakte und sind dort aufbewahrungspflichtig statt löschpflichtig.",
