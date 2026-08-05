@@ -4,6 +4,8 @@ import {
   ArrowLeft,
   CheckCircle2,
   Download,
+  Eye,
+  EyeOff,
   Forward,
   Mail,
   MapPin,
@@ -40,7 +42,7 @@ import {
 import { formatBytes, formatDatum, formatDatumZeit, t } from '../i18n'
 import { api, ApiError } from '../lib/api'
 import { useAuth } from '../lib/auth'
-import { PHASEN, vollerName, type Bewerbung, type Phase, type Stelle } from '../lib/typen'
+import { PHASEN, vollerName, type Bewerbung, type Phase, type Stelle, type Dokument } from '../lib/typen'
 
 export function BewerbungPage() {
   const { id } = useParams<{ id: string }>()
@@ -340,6 +342,7 @@ function DokumenteKarte({ bewerbung, onGeaendert }: { bewerbung: Bewerbung; onGe
   const dateiFeld = useRef<HTMLInputElement>(null)
   const [betrachtet, setBetrachtet] = useState<{ id: string; name: string } | null>(null)
   const [gesplittet, setGesplittet] = useState<{ id: string; name: string } | null>(null)
+  const [zeigeOriginale, setZeigeOriginale] = useState(false)
 
   const hochladen = useMutation({
     mutationFn: (dateien: FileList) => {
@@ -353,6 +356,28 @@ function DokumenteKarte({ bewerbung, onGeaendert }: { bewerbung: Bewerbung; onGe
     },
     onError: (err: unknown) => toast.fehler(err instanceof ApiError ? err.message : t('app.fehler')),
   })
+
+  /**
+   * Ein Original gilt als erledigt, sobald seine Seiten vollständig in
+   * Teildokumenten stecken. Dann ist es nur noch Beleg – sichtbar bleiben
+   * soll, womit gearbeitet wird.
+   *
+   * Maßstab sind die tatsächlich zugeordneten Seiten, nicht die bloße Anzahl
+   * der Teile: Wer nur das Anschreiben herauslöst, hat den Rest noch vor sich
+   * und braucht das Original weiter im Blick.
+   */
+  const vollstaendigAufgetrennt = (dok: Dokument): boolean => {
+    if (dok.parentId !== null || !dok.pageCount) return false
+    const teile = bewerbung.documents.filter((d) => d.parentId === dok.id)
+    if (teile.length === 0) return false
+    const abgedeckt = new Set(teile.flatMap((d) => d.sourcePages))
+    return Array.from({ length: dok.pageCount }, (_, i) => i + 1).every((s) => abgedeckt.has(s))
+  }
+
+  const verborgene = bewerbung.documents.filter(vollstaendigAufgetrennt)
+  const sichtbare = zeigeOriginale
+    ? bewerbung.documents
+    : bewerbung.documents.filter((d) => !verborgene.some((v) => v.id === d.id))
 
   return (
     <Karte
@@ -380,15 +405,31 @@ function DokumenteKarte({ bewerbung, onGeaendert }: { bewerbung: Bewerbung; onGe
               <Upload className="h-3.5 w-3.5" />
               {t('bewerbungen.hochladen')}
             </Button>
+            {verborgene.length > 0 && (
+              <Button variante="still" groesse="sm" onClick={() => setZeigeOriginale((z) => !z)}>
+                {zeigeOriginale ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                {zeigeOriginale ? t('bewerbungen.originaleAusblenden') : t('bewerbungen.originaleZeigen')}
+              </Button>
+            )}
           </>
         ) : undefined
       }
     >
-      {bewerbung.documents.length === 0 ? (
+      {verborgene.length > 0 && !zeigeOriginale && (
+        <p className="mb-2 text-xs text-slate-400">
+          {t(
+            verborgene.length === 1
+              ? 'bewerbungen.originaleVerborgen'
+              : 'bewerbungen.originaleVerborgenMehrzahl',
+            { n: verborgene.length },
+          )}
+        </p>
+      )}
+      {sichtbare.length === 0 ? (
         <p className="py-4 text-center text-sm text-slate-500">{t('bewerbungen.keineDokumente')}</p>
       ) : (
         <ul className="divide-y divide-slate-100">
-          {bewerbung.documents.map((dok) => {
+          {sichtbare.map((dok) => {
             const istPdf = dok.mimeType === 'application/pdf'
             const teilVon = dok.parentId !== null
             return (

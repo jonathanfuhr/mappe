@@ -104,3 +104,40 @@ export function downloadName(name: string): string {
       .slice(0, 180) || 'datei'
   )
 }
+
+/**
+ * Baut den vollständigen `Content-Disposition`-Wert.
+ *
+ * HTTP-Kopfzeilen dürfen nur Latin-1 enthalten. Node setzt das durch und
+ * bricht sonst mit ERR_INVALID_CHAR ab – die Antwort scheitert dann komplett,
+ * die Datei ist im Browser einfach nicht da.
+ *
+ * Aufgefallen ist das an den aufgetrennten PDFs: Sie heißen „Bewerbung –
+ * Anschreiben 1.pdf", und der Gedankenstrich (U+2013) liegt außerhalb von
+ * Latin-1. Die hochgeladenen Originale gingen weiter, weil ihre Namen aus dem
+ * Mailanhang stammen und selten Sonderzeichen enthalten – das machte den
+ * Fehler erst schwer greifbar.
+ *
+ * Deshalb beides, wie es RFC 6266 vorsieht: ein zahmer ASCII-Name für alte
+ * Programme und `filename*` mit dem echten Namen für alle heutigen Browser.
+ */
+export function contentDisposition(inline: boolean, name: string): string {
+  const bereinigt = downloadName(name)
+
+  // Für den ASCII-Teil: Was sich sinnvoll ersetzen lässt, wird ersetzt – der
+  // Rest weicht einem Bindestrich, damit der Name lesbar bleibt.
+  const ascii =
+    bereinigt
+      .replace(/[\u2010-\u2015]/g, '-')
+      .replace(/[\u2018\u2019]/g, "'")
+      .replace(/[\u201C\u201D]/g, '')
+      .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue')
+      .replace(/Ä/g, 'Ae').replace(/Ö/g, 'Oe').replace(/Ü/g, 'Ue')
+      .replace(/ß/g, 'ss')
+      .replace(/[^\x20-\x7E]/g, '-')
+      .trim() || 'datei'
+
+  const kodiert = encodeURIComponent(bereinigt)
+
+  return `${inline ? 'inline' : 'attachment'}; filename="${ascii}"; filename*=UTF-8''${kodiert}`
+}

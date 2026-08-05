@@ -4,7 +4,7 @@ import { currentUser, requireAdmin, requireAuth, requireRecruiter } from '../aut
 import { prisma } from '../db'
 import { audit } from '../lib/audit'
 import { notFound, wrap } from '../lib/errors'
-import { downloadName, readFileFrom } from '../lib/storage'
+import { contentDisposition, readFileFrom } from '../lib/storage'
 import { getSetting } from '../settings/service'
 import { holeAdapter, VERFUEGBARE_ADAPTER } from './registry'
 import { fuehreSyncAus, setzeSyncZurueck, syncLaeuft } from './sync'
@@ -102,10 +102,10 @@ mailRouter.get(
     if (mail.applicationId) await assertCanViewApplication(me, mail.applicationId)
 
     const inhalt = await readFileFrom(mail.emlPath)
-    const name = downloadName(`${mail.subject || 'nachricht'}.eml`)
-
     res.setHeader('Content-Type', 'message/rfc822')
-    res.setHeader('Content-Disposition', `attachment; filename="${name}"`)
+    // Auch hier über den gemeinsamen Bauer: Ein Betreff enthält fast immer
+    // etwas, das in einer HTTP-Kopfzeile nichts zu suchen hat.
+    res.setHeader('Content-Disposition', contentDisposition(false, `${mail.subject || 'nachricht'}.eml`))
     res.setHeader('Cache-Control', 'private, no-store')
     res.send(inhalt)
   }),
@@ -132,7 +132,7 @@ mailRouter.get(
     res.setHeader('Content-Type', anhang.mimeType)
     res.setHeader(
       'Content-Disposition',
-      `${inline ? 'inline' : 'attachment'}; filename="${downloadName(anhang.filename)}"`,
+      contentDisposition(inline, anhang.filename),
     )
     res.setHeader('Cache-Control', 'private, no-store')
     res.send(inhalt)
