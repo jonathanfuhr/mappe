@@ -126,6 +126,14 @@ export const benachrichtigungenSchema = z.object({
   unbeantwortet: z.boolean().default(true),
   /** Ab wie vielen Tagen ohne Fortschritt erinnert wird. */
   tage: z.coerce.number().int().min(1).max(365).default(14),
+  /**
+   * Zusätzlich per Mail benachrichtigen.
+   *
+   * Verschickt wird gebündelt – eine Mail je Lauf und Empfänger, nicht eine je
+   * Ereignis. Wer keine Mails möchte, stellt sie im eigenen Profil ab; der
+   * Admin kann sie je Nutzer setzen.
+   */
+  perMail: z.boolean().default(false),
 })
 
 export const retentionSchema = z.object({

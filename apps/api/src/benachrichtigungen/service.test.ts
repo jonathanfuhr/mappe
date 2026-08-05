@@ -1,6 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { prisma } from '../db'
 import { clearSettingsCache, updateSetting } from '../settings/service'
+import { versendeBenachrichtigungsMails } from './mail'
 import { meldeNeueBewerbung, pruefeLiegengebliebene } from './service'
 
 /**
@@ -18,6 +19,7 @@ async function stelleEin(teil: Record<string, unknown> = {}): Promise<void> {
     neueBewerbung: true,
     unbeantwortet: true,
     tage: 14,
+    perMail: false,
     ...teil,
   })
   clearSettingsCache()
@@ -141,5 +143,52 @@ describe('Liegengebliebene Bewerbungen', () => {
     })
 
     expect(await pruefeLiegengebliebene()).toBe(0)
+  })
+})
+
+describe('Mails werden gebündelt', () => {
+  it('verschickt nichts, solange der Mailversand aus ist', async () => {
+    await stelleEin({ perMail: false })
+    const bewerbung = await legeAn({ nachname: 'Aus' })
+    await meldeNeueBewerbung(bewerbung.id)
+
+    expect(await versendeBenachrichtigungsMails()).toBe(0)
+    const offen = await prisma.notification.findFirstOrThrow()
+    expect(offen.mailedAt).toBeNull()
+  })
+
+  it('verschickt nichts ohne angebundenes Postfach', async () => {
+    // Kein Adapter eingerichtet: Der Lauf darf nicht scheitern, sondern
+    // schlicht nichts tun – die Meldungen bleiben für später offen.
+    await stelleEin({ perMail: true })
+    const bewerbung = await legeAn({ nachname: 'OhnePostfach' })
+    await meldeNeueBewerbung(bewerbung.id)
+
+    expect(await versendeBenachrichtigungsMails()).toBe(0)
+    const offen = await prisma.notification.findFirstOrThrow()
+    expect(offen.mailedAt).toBeNull()
+  })
+
+  it('überspringt, wer Mails für sich abgeschaltet hat', async () => {
+    await stelleEin({ perMail: true })
+    await prisma.user.update({ where: { id: recruiter }, data: { notifyByMail: false } })
+    const bewerbung = await legeAn({ nachname: 'Stumm' })
+    await meldeNeueBewerbung(bewerbung.id)
+
+    // Die Meldung steht weiterhin in der Oberfläche – nur eine Mail gibt es
+    // nicht. Deshalb bleibt sie ungelesen und ohne mailedAt.
+    const eintrag = await prisma.notification.findFirstOrThrow()
+    expect(eintrag.userId).toBe(recruiter)
+    expect(await versendeBenachrichtigungsMails()).toBe(0)
+  })
+
+  it('lässt bereits Gelesenes aus', async () => {
+    await stelleEin({ perMail: true })
+    const bewerbung = await legeAn({ nachname: 'Gelesen' })
+    await meldeNeueBewerbung(bewerbung.id)
+    await prisma.notification.updateMany({ data: { readAt: new Date() } })
+
+    // Wer es in der Oberfläche schon gesehen hat, braucht dazu keine Mail.
+    expect(await versendeBenachrichtigungsMails()).toBe(0)
   })
 })

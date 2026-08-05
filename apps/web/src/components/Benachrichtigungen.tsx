@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Bell } from 'lucide-react'
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { zeige as zeigeDesktopMeldung } from '../lib/desktopBenachrichtigung'
 import { formatRelativ, t } from '../i18n'
 import { api } from '../lib/api'
 import { vollerName } from '../lib/typen'
@@ -30,7 +31,11 @@ interface Benachrichtigung {
 
 export function Benachrichtigungen() {
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const [offen, setOffen] = useState(false)
+  // Was beim letzten Durchlauf schon da war. Ohne das käme bei jedem Abruf
+  // erneut eine Meldung für dieselben Einträge.
+  const bekannt = useRef<Set<string> | null>(null)
 
   const { data } = useQuery({
     queryKey: ['benachrichtigungen'],
@@ -47,6 +52,34 @@ export function Benachrichtigungen() {
 
   const eintraege = data ?? []
   const ungelesen = eintraege.filter((e) => !e.readAt)
+
+  useEffect(() => {
+    if (!data) return
+    const ids = new Set(data.filter((e) => !e.readAt).map((e) => e.id))
+    // Beim ersten Laden nur merken, nicht melden – sonst poppt beim Öffnen
+    // der Seite alles auf, was seit Tagen ungelesen ist.
+    if (bekannt.current === null) {
+      bekannt.current = ids
+      return
+    }
+    const neue = data.filter((e) => !e.readAt && !bekannt.current!.has(e.id))
+    bekannt.current = ids
+    if (neue.length === 0) return
+
+    const erste = neue[0]
+    const text =
+      neue.length === 1
+        ? `${erste.application ? vollerName(erste.application.candidate) : (erste.data.name ?? '')} – ${
+            erste.type === 'UNBEANTWORTET'
+              ? t('benachrichtigungen.UNBEANTWORTET', { tage: erste.data.tage ?? 0 })
+              : t('benachrichtigungen.NEUE_BEWERBUNG')
+          }`
+        : `${neue.length} neue Meldungen`
+    zeigeDesktopMeldung(t('benachrichtigungen.neueMeldung'), text, () => {
+      if (neue.length === 1 && erste.application) navigate(`/bewerbungen/${erste.application.id}`)
+      else setOffen(true)
+    })
+  }, [data, navigate])
 
   return (
     <div className="relative">

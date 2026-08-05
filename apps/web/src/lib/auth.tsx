@@ -8,6 +8,7 @@ export interface AngemeldeterNutzer {
   name: string
   email: string
   role: Rolle
+  notifyByMail?: boolean
 }
 
 export interface InstanzStatus {

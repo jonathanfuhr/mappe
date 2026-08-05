@@ -117,9 +117,47 @@ authRouter.post('/logout', (req, res) => {
   res.json({ ok: true })
 })
 
-authRouter.get('/me', requireAuth, (req, res) => {
-  res.json(currentUser(req))
+authRouter.get(
+  '/me',
+  requireAuth,
+  wrap(async (req, res) => {
+    const me = currentUser(req)
+    // Die Benachrichtigungseinstellung steckt nicht im Sitzungs-Token – sonst
+    // müsste sich abmelden, wer sie ändert.
+    const nutzer = await prisma.user.findUnique({
+      where: { id: me.id },
+      select: { notifyByMail: true },
+    })
+    res.json({ ...me, notifyByMail: nutzer?.notifyByMail ?? true })
+  }),
+)
+
+/**
+ * Die eigene Benachrichtigungseinstellung.
+ *
+ * Bewusst ohne Adminrecht: Wer keine Mails möchte, soll sie abstellen können,
+ * ohne jemanden fragen zu müssen. Der Admin kann den Wert daneben je Nutzer
+ * setzen – etwa um jemanden neu aufzuschalten.
+ */
+const benachrichtigungenSchema = z.object({
+  perMail: z.boolean(),
 })
+
+authRouter.patch(
+  '/benachrichtigungen',
+  requireAuth,
+  body(benachrichtigungenSchema),
+  wrap(async (req, res) => {
+    const me = currentUser(req)
+    const d = req.body as z.infer<typeof benachrichtigungenSchema>
+    const nutzer = await prisma.user.update({
+      where: { id: me.id },
+      data: { notifyByMail: d.perMail },
+      select: { notifyByMail: true },
+    })
+    res.json({ perMail: nutzer.notifyByMail })
+  }),
+)
 
 const passwordChangeSchema = z.object({
   aktuellesPasswort: z.string().min(1),

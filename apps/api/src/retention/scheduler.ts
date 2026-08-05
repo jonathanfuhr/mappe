@@ -1,5 +1,6 @@
 import { env } from '../env'
 import { getSetting } from '../settings/service'
+import { versendeBenachrichtigungsMails } from '../benachrichtigungen/mail'
 import { pruefeLiegengebliebene } from '../benachrichtigungen/service'
 import { berechneFristen, loescheFaellige } from './service'
 
@@ -57,6 +58,10 @@ async function lauf(): Promise<void> {
     try {
       const angelegt = await pruefeLiegengebliebene()
       if (angelegt > 0) console.log(`[mappe] ${angelegt} Erinnerung(en) angelegt.`)
+      // Nach dem Anlegen, damit frisch entstandene Meldungen noch in dieselbe
+      // Zusammenfassung kommen.
+      const gemailt = await versendeBenachrichtigungsMails()
+      if (gemailt > 0) console.log(`[mappe] Benachrichtigungen an ${gemailt} Person(en) gemailt.`)
     } catch (err) {
       console.error('[mappe] Erinnerungen fehlgeschlagen:', err instanceof Error ? err.message : err)
     }

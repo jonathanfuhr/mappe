@@ -93,7 +93,8 @@
     "sperren": "Sperren",
     "entsperren": "Entsperren",
     "letzterAdmin": "Das ist der letzte aktive Admin.",
-    "microsoftLogin": "Microsoft-Login verknüpft"
+    "microsoftLogin": "Microsoft-Login verknüpft",
+    "perMailHilfe": "Dieses Konto per Mail benachrichtigen. Der Nutzer kann es im eigenen Profil ebenfalls ändern."
   },
   "phasen": {
     "NEU": "Neu",
@@ -441,7 +442,20 @@
     "aktivUnbeantwortet": "An Bewerbungen erinnern, die zu lange liegen",
     "tage": "Erinnern nach (Tagen ohne Fortschritt)",
     "hinweis": "Benachrichtigungen erscheinen nur in der Oberfläche. Mappe verschickt dafür keine Mails.",
-    "empfaengerHinweis": "Admins und Recruiter bekommen die Meldungen. Interviewer nicht – sie sehen ohnehin nur zugewiesene Bewerbungen."
+    "empfaengerHinweis": "Admins und Recruiter bekommen die Meldungen. Interviewer nicht – sie sehen ohnehin nur zugewiesene Bewerbungen.",
+    "perMail": "Zusätzlich per Mail benachrichtigen",
+    "perMailHilfe": "Gebündelt: eine Mail je Durchlauf und Empfänger, nicht eine je Ereignis. Verschickt wird über das Bewerbungspostfach. Jeder Nutzer kann das für sich abschalten.",
+    "perMailOhnePostfach": "Solange kein Postfach angebunden ist, kann Mappe keine Mails verschicken.",
+    "eigene": "Meine Benachrichtigungen",
+    "eigeneMail": "Mich per Mail benachrichtigen",
+    "eigeneMailHilfe": "Gilt nur für dieses Konto. Der Admin kann Mails zusätzlich für alle abschalten.",
+    "desktop": "Desktop-Benachrichtigungen",
+    "desktopHilfe": "Zeigt neue Meldungen als Hinweis des Betriebssystems – solange Mappe in einem Tab geöffnet ist.",
+    "desktopErlauben": "Im Browser erlauben",
+    "desktopBlockiert": "Der Browser hat Benachrichtigungen für diese Seite blockiert. Das lässt sich nur in den Browsereinstellungen ändern.",
+    "desktopAn": "Erlaubt",
+    "desktopNichtUnterstuetzt": "Dieser Browser kennt keine Benachrichtigungen.",
+    "neueMeldung": "Neu in Mappe"
   },
   "historie": {
     "titel": "Historie",
