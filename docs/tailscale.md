@@ -30,10 +30,29 @@ eine Zeile dazu:
 serve proxy: … it is not able to issue TLS certs, so this will likely not work.
 ```
 
-Wer das nicht einschalten will oder kann, trägt `TS_MODUS=http` in die `.env`
-ein. Dann läuft der Zugang über Port 80 im Tailnet – innerhalb des Tailnets
-ist der Verkehr ohnehin verschlüsselt, aber das Sitzungs-Cookie wird dann
-nicht als `secure` gesetzt, und `APP_URL` muss mit `http://` beginnen.
+Wer das nicht einschalten will oder kann, nimmt den Weg über HTTP. In die
+`.env`:
+
+```
+TS_MODUS=http
+TS_SERVE_CONFIG=
+```
+
+`TS_SERVE_CONFIG` bleibt dabei **leer**. Der Grund ist eine Eigenheit, die
+sonst Stunden kostet: Ohne HTTPS wird der Platzhalter für den eigenen Namen zu
+`no-https`, und eine Konfigurationsdatei hängt den Zugang dann an einen Namen,
+den niemand aufruft – die Adresse antwortet mit **404**, obwohl alles zu
+laufen scheint. Deshalb wird die Konfiguration einmalig per Befehl gesetzt; sie
+bleibt im Zustandsverzeichnis erhalten:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.tailscale.yml \
+  exec tailscale tailscale serve --bg --http=80 http://app:3000
+```
+
+Innerhalb des Tailnets ist der Verkehr ohnehin verschlüsselt. Das
+Sitzungs-Cookie wird auf diesem Weg aber nicht als `secure` gesetzt, und
+`APP_URL` muss mit `http://` beginnen.
 
 ### 1. Auth-Key erzeugen
 
