@@ -45,6 +45,82 @@ describe('Grundlegendes Parsen', () => {
   })
 })
 
+describe('Anhänge', () => {
+  /**
+   * Der Fall, an dem die ersten echten Bewerbungen gescheitert sind: Outlook
+   * und Gmail geben auch ganz normalen Dateianhängen eine Content-ID mit. Wer
+   * die als Zeichen für „eingebettet" nimmt, wirft die Bewerbungsunterlagen
+   * weg – wortlos, weil ein übersprungener Anhang kein Fehler ist.
+   */
+  function mitAnhang(kopfzeilen: string): Buffer {
+    const grenze = 'GRENZE123'
+    return Buffer.from(
+      [
+        'From: anna@example.com',
+        'To: bewerbung@firma.de',
+        'Subject: Bewerbung',
+        'MIME-Version: 1.0',
+        `Content-Type: multipart/mixed; boundary="${grenze}"`,
+        '',
+        `--${grenze}`,
+        'Content-Type: text/plain; charset="utf-8"',
+        '',
+        'Anbei meine Unterlagen.',
+        '',
+        `--${grenze}`,
+        'Content-Type: application/pdf; name="bewerbung.pdf"',
+        kopfzeilen,
+        'Content-Transfer-Encoding: base64',
+        '',
+        Buffer.from('%PDF-1.4 Testinhalt').toString('base64'),
+        '',
+        `--${grenze}--`,
+        '',
+      ].join('\r\n'),
+    )
+  }
+
+  it('behält einen Anhang, der trotz Content-ID ein echter Anhang ist', async () => {
+    // Exchange hängt so eine cid an jede Datei – das darf sie nicht entwerten.
+    const geparst = await parseMime(
+      mitAnhang(
+        [
+          'Content-Disposition: attachment; filename="bewerbung.pdf"',
+          'Content-ID: <3986D1E3@DEUP281.PROD.OUTLOOK.COM>',
+        ].join('\r\n'),
+      ),
+      VERTEILER,
+    )
+
+    expect(geparst.anhaenge).toHaveLength(1)
+    expect(geparst.anhaenge[0].dateiname).toBe('bewerbung.pdf')
+    expect(geparst.anhaenge[0].inline).toBe(false)
+  })
+
+  it('behält einen Anhang ganz ohne Content-ID', async () => {
+    const geparst = await parseMime(
+      mitAnhang('Content-Disposition: attachment; filename="bewerbung.pdf"'),
+      VERTEILER,
+    )
+
+    expect(geparst.anhaenge).toHaveLength(1)
+    expect(geparst.anhaenge[0].inline).toBe(false)
+  })
+
+  it('erkennt ein eingebettetes Bild weiterhin als eingebettet', async () => {
+    // Das Signaturlogo: ausdrücklich als inline gekennzeichnet.
+    const geparst = await parseMime(
+      mitAnhang(
+        ['Content-Disposition: inline; filename="logo.pdf"', 'Content-ID: <logo@firma.de>'].join('\r\n'),
+      ),
+      VERTEILER,
+    )
+
+    expect(geparst.anhaenge).toHaveLength(1)
+    expect(geparst.anhaenge[0].inline).toBe(true)
+  })
+})
+
 describe('Weiterleitungs-Erkennung', () => {
   it('erkennt den Absender aus einem eingebetteten Outlook-Vorspann', async () => {
     const nachricht = mime(
