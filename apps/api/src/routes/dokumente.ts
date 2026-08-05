@@ -8,7 +8,7 @@ import { env } from '../env'
 import { audit } from '../lib/audit'
 import { ereignis } from '../lib/historie'
 import { badRequest, notFound, wrap } from '../lib/errors'
-import { deleteFile, downloadName, readFileFrom, writeFileTo } from '../lib/storage'
+import { contentDisposition, deleteFile, readFileFrom, writeFileTo } from '../lib/storage'
 import { body } from '../lib/validate'
 import { schlageKategorienVor } from '../pdf/heuristik'
 import { nimmSplitZurueck, trenneAuf } from '../pdf/split'
@@ -119,10 +119,7 @@ dokumenteRouter.get(
     // Download landen.
     const inline = dokument.mimeType === 'application/pdf' || dokument.mimeType.startsWith('image/')
     res.setHeader('Content-Type', dokument.mimeType)
-    res.setHeader(
-      'Content-Disposition',
-      `${inline ? 'inline' : 'attachment'}; filename="${downloadName(dokument.filename)}"`,
-    )
+    res.setHeader('Content-Disposition', contentDisposition(inline, dokument.filename))
     res.setHeader('Content-Length', String(inhalt.byteLength))
     // Dokumente sind personenbezogen – nichts davon gehört in einen Cache.
     res.setHeader('Cache-Control', 'private, no-store')
