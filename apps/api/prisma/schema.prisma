@@ -44,7 +44,6 @@ model User {
 
   ratings             Rating[]
   notes               Note[]
-  pdfComments         PdfComment[]
   interviews          Interview[]
   applicationAccess   ApplicationAssignment[]
   jobAccess           JobAssignment[]
@@ -274,32 +273,10 @@ model Document {
   extractedText String?
   textExtractedAt DateTime?
   createdAt     DateTime         @default(now())
-
-  comments   PdfComment[]
   attachment MailAttachment?
 
   @@index([applicationId])
   @@index([category])
-}
-
-// Kommentare an einer Textstelle. Die PDF selbst bleibt unangetastet.
-model PdfComment {
-  id         String   @id @default(uuid())
-  documentId String
-  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  page       Int
-  quotedText String   @default("")
-  // Markierungsrechtecke in relativen Seitenkoordinaten:
-  // [{ x, y, width, height }] jeweils 0..1
-  rects      Json     @default("[]")
-  body       String
-  resolved   Boolean  @default(false)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  @@index([documentId, page])
 }
 
 // ---------------------------------------------------------------------------

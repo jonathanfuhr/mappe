@@ -30,9 +30,8 @@ Referenznummer, Titel und Stichworte.
 daneben der bisherige Wert. Übernommen wird nur, was bestätigt ist.
 
 **Tägliches Arbeiten.** Kanban-Board über neun Phasen, Liste mit Filtern,
-Bewertung mit Sternen und Kurzurteil, Notizen, PDF-Viewer mit Kommentaren an
-der Textstelle, Auftrennen von Kombi-PDFs in Anschreiben, Lebenslauf und
-Zeugnisse.
+Bewertung mit Sternen und Kurzurteil, Notizen, PDF-Viewer, Auftrennen von
+Kombi-PDFs in Anschreiben, Lebenslauf und Zeugnisse.
 
 **Antworten aus Vorlagen.** Zwölf mitgelieferte Vorlagen in Du- und
 Sie-Fassung, mit Platzhaltern und frei definierbaren Zusatzfeldern. Versendet

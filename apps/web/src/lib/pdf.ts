@@ -49,39 +49,3 @@ export function vergissDokument(dokumentId: string): void {
     zwischenlager.delete(dokumentId)
   }
 }
-
-export interface RelativesRechteck {
-  x: number
-  y: number
-  width: number
-  height: number
-}
-
-/**
- * Rechnet die Rechtecke einer Textauswahl in seitenrelative Koordinaten um.
- *
- * Relativ zu speichern ist wichtig: Die Markierung muss auch dann sitzen,
- * wenn dieselbe Seite später in einer anderen Größe angezeigt wird.
- */
-export function auswahlZuRechtecken(
-  auswahl: Selection,
-  seitenElement: HTMLElement,
-): { rechtecke: RelativesRechteck[]; zitat: string } {
-  const seitenRahmen = seitenElement.getBoundingClientRect()
-  const rechtecke: RelativesRechteck[] = []
-
-  for (let i = 0; i < auswahl.rangeCount; i++) {
-    for (const rahmen of Array.from(auswahl.getRangeAt(i).getClientRects())) {
-      // Auswahlrechtecke ohne Fläche entstehen an Zeilenumbrüchen.
-      if (rahmen.width < 1 || rahmen.height < 1) continue
-      rechtecke.push({
-        x: (rahmen.left - seitenRahmen.left) / seitenRahmen.width,
-        y: (rahmen.top - seitenRahmen.top) / seitenRahmen.height,
-        width: rahmen.width / seitenRahmen.width,
-        height: rahmen.height / seitenRahmen.height,
-      })
-    }
-  }
-
-  return { rechtecke, zitat: auswahl.toString().replace(/\s+/g, ' ').trim().slice(0, 2000) }
-}
