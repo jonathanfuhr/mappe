@@ -145,6 +145,13 @@ docker save mappe:latest | gzip > mappe.tar.gz     # auf dem Baurechner
 gunzip -c mappe.tar.gz | docker load               # auf dem Server
 ```
 
+## Zugriff von unterwegs
+
+Ohne Mappe ins offene Netz zu stellen: [tailscale.md](tailscale.md). Mappe wird
+dabei ein eigener Rechner im Tailnet und lässt sich dort einzeln freigeben –
+im Gegensatz zu einem Tailscale auf dem Server, über das immer gleich der
+ganze Server erreichbar ist.
+
 ## HTTPS
 
 Der Container spricht HTTP auf Port 3000; nach außen ist er über `MAPPE_PORT`
