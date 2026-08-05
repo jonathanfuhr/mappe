@@ -17,6 +17,24 @@ dazu, nicht an dessen Stelle.
 
 ## Einrichten
 
+### 0. HTTPS im Tailnet einschalten
+
+In der Tailscale-Verwaltung unter **DNS → HTTPS Certificates → Enable**.
+
+Ohne das kann der Sidecar kein Zertifikat ausstellen. Die Serve-Konfiguration
+wird dann **stillschweigend verworfen**: Mappe taucht als Rechner im Tailnet
+auf, ist aber unter der Adresse nicht erreichbar – und in den Logs steht nur
+eine Zeile dazu:
+
+```
+serve proxy: … it is not able to issue TLS certs, so this will likely not work.
+```
+
+Wer das nicht einschalten will oder kann, trägt `TS_MODUS=http` in die `.env`
+ein. Dann läuft der Zugang über Port 80 im Tailnet – innerhalb des Tailnets
+ist der Verkehr ohnehin verschlüsselt, aber das Sitzungs-Cookie wird dann
+nicht als `secure` gesetzt, und `APP_URL` muss mit `http://` beginnen.
+
 ### 1. Auth-Key erzeugen
 
 In der Tailscale-Verwaltung unter **Settings → Keys → Generate auth key**:
@@ -34,6 +52,7 @@ In der Tailscale-Verwaltung unter **Settings → Keys → Generate auth key**:
 TS_AUTHKEY=tskey-auth-…
 TS_HOSTNAME=mappe
 TS_STATE_DIR=/mnt/user/appdata/mappe/tailscale
+TS_MODUS=https
 ```
 
 `TS_STATE_DIR` ist auf Unraid wichtig: Der Anmeldezustand gehört dorthin, wo er
@@ -96,6 +115,17 @@ Neuanmeldung; ein Name kann sich dabei ändern.
 **Der Zustand gehört gesichert.** `TS_STATE_DIR` enthält die Identität des
 Rechners im Tailnet. Geht er verloren, meldet sich Mappe als neuer Rechner an –
 die ACLs greifen dann nicht mehr, bis der Tag neu vergeben ist.
+
+**Erreichbar, aber nichts lauscht?** Fast immer fehlt HTTPS im Tailnet
+(Schritt 0). Der Beweis steht in einer Zeile:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.tailscale.yml \
+  exec tailscale tailscale serve status
+```
+
+Kommt dort `No serve config`, wurde die Konfiguration verworfen – dann
+entweder HTTPS einschalten oder `TS_MODUS=http` setzen und neu starten.
 
 **Prüfen, ob der Rechner steht:**
 
