@@ -225,7 +225,15 @@ function zuAnhang(anhang: Attachment): GeparsterAnhang {
     mimeTyp: anhang.contentType ?? 'application/octet-stream',
     inhalt,
     groesse: inhalt.byteLength,
-    inline: anhang.contentDisposition === 'inline' || Boolean(anhang.cid),
+    // Eine Content-ID allein macht einen Anhang **nicht** eingebettet: Outlook
+    // und Gmail vergeben sie auch für ganz normale Dateianhänge. Genau daran
+    // sind die ersten echten Bewerbungen gescheitert – die PDFs wurden
+    // wortlos verworfen, weil Exchange ihnen eine cid mitgegeben hatte.
+    //
+    // Maßgeblich ist, ob der Anhang im HTML-Text auch wirklich benutzt wird.
+    // Das beantwortet `related`: mailparser setzt es genau dann, wenn eine
+    // Stelle im HTML per `cid:` darauf zeigt – der Fall des Signaturlogos.
+    inline: anhang.contentDisposition === 'inline' || anhang.related === true,
   }
 }
 

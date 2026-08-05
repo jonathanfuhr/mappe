@@ -63,6 +63,12 @@ services:
     # Betroffen war bei uns ausgerechnet der Microsoft-Login – wechselhaft,
     # weil andere Namen weiterhin IPv4 zurückgaben.
     dns: ${MAPPE_DNS:-127.0.0.11}
+    # Sobald MAPPE_DNS gesetzt ist, reicht Docker auch `host.docker.internal`
+    # an den fremden Auflöser weiter – und der kennt den Namen nicht. Über die
+    # Hosts-Datei bleibt er unabhängig davon erreichbar. Das ist der Weg zu
+    # Diensten auf dem Server selbst, etwa einem lokalen Ollama.
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
     volumes:
       - ${DOKUMENTE_DIR:-dokumente}:/data/storage
 
